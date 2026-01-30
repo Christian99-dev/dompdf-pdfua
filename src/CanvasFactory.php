@@ -6,6 +6,9 @@
  */
 namespace Dompdf;
 
+// Include our AccessibleTCPDF class
+require_once __DIR__ . '/../lib/AccessibleTCPDF/AccessibleTCPDF.php';
+
 /**
  * Create canvas instances
  *
@@ -33,6 +36,7 @@ class CanvasFactory
      */
     static function get_instance(Dompdf $dompdf, $paper, string $orientation, ?string $class = null)
     {
+        SimpleLogger::log("canvas_factory_logs", __FUNCTION__, "Creating canvas instance with backend: " . $dompdf->getOptions()->getPdfBackend());
         $backend = strtolower($dompdf->getOptions()->getPdfBackend());
 
         if (isset($class) && class_exists($class, false)) {
@@ -43,7 +47,11 @@ class CanvasFactory
             ) {
                 $class = "Dompdf\\Adapter\\PDFLib";
             }
-
+            elseif (($backend === "tcpdf") &&
+                class_exists("AccessibleTCPDF", true)
+            ) {
+                $class = "Dompdf\\Adapter\\TCPDF";
+            }
             else {
                 if (class_exists($backend, false)) {
                     $class = $backend;
@@ -63,6 +71,7 @@ class CanvasFactory
             $instance = new $class($paper, $orientation, $dompdf);
         }
 
+        SimpleLogger::log("canvas_factory_logs", __FUNCTION__, "Created canvas instance of class: $class");
         return $instance;
     }
 }

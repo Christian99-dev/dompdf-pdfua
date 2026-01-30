@@ -1,0 +1,759 @@
+<?php
+/**
+ * StructureTreeBuilder - Builds PDF/UA Structure Tree
+ * 
+ * Encapsulates structure tree building logic with clean separation:
+ * - Collects MCID registrations during rendering
+ * - Generates PDF object strings (NO I/O operations!)
+ * - Returns strings for AccessibleTCPDF to output
+ * 
+ * ARCHITECTURE: String Generation Only
+ * ====================================
+ * build() method generates PDF object strings but does NOT call _newobj() or _out()
+ * This enables:
+ * - Testability: Can test string generation without TCPDF instance
+ * - Maintainability: Clear separation between logic and I/O
+ * - Flexibility: Strings can be logged/validated before output
+ * 
+ * @package dompdf-accessible
+ * @link    https://github.com/dompdf/dompdf
+ * @license http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License
+ */
+
+use Dompdf\SimpleLogger;
+use Dompdf\SemanticNode;
+
+class StructureTreeBuilder
+{
+    /**
+     * Structure tree elements collected during rendering
+     * Format: [ ['mcid' => int, 'page' => int, 'semantic' => SemanticNode], ... ]
+     * @var array
+     */
+    private array $structureTree = [];
+
+    /**
+     * Hash set for O(1) duplicate detection (inside add()) instead of O(n) array scan
+     * Format: [ "frameId:mcid:page" => true, ... ]
+     * @var array
+     */
+    private array $registeredKeys = [];
+
+    /**
+     * Frame ID to Annotation Object ID mapping
+     * Stores which annotation belongs to which frame/element
+     * Format: [ frameId => annotObjId, ... ]
+     * @var array
+     */
+    private array $frameAnnotations = [];
+
+    /**
+     * Cached Structure Tree Root object ID after build()
+     * @var int|null
+     */
+    private ?int $structureObjId = null;
+
+    /**
+     * Get Structure Tree Root object ID after build()
+     * 
+     * @return int|null Structure Tree Root object ID or null if not built yet
+     */
+    public function getStructureObjId(): ?int
+    {
+        return $this->structureObjId;
+    }
+
+    /**
+     * Register a new MCID with its semantic element
+     * 
+     * Called when semantic BDC is opened (from onBDCOpened callback).
+     * 
+     * DEDUPLICATION: If the same (frameId, mcid, page) combination already exists,
+     * we skip registration. This handles the case where drawing operations
+     * re-open the same BDC after interruption.
+     * 
+     * PERFORMANCE: O(1) lookup using hash set instead of O(n) array scan.
+     * 
+     * @param SemanticNode $node Semantic node
+     * @param int $mcid Marked Content ID
+     * @param int $page Page number (1-based)
+     * @return void
+     */
+    public function add(SemanticNode $node, int $mcid, int $page): void
+    {
+        // Build unique key for O(1) lookup
+        $key = "{$node->id}:{$mcid}:{$page}";
+        
+        // Skip if already registered (O(1) hash lookup)
+        if (isset($this->registeredKeys[$key])) {
+            return; // Happens when drawing operations re-open BDC
+        }
+        
+        // Register new entry
+        $this->registeredKeys[$key] = true;
+        $this->structureTree[] = [
+            'mcid' => $mcid,
+            'page' => $page,
+            'semantic' => $node
+        ];
+    }
+
+    /**
+     * Register an annotation for a specific frame
+     * 
+     * Called when an annotation is created (e.g., Link annotation).
+     * Stores the mapping so we can later add /OBJR to the StructElem.
+     * 
+     * @param string $frameId Frame ID of the element that has the annotation
+     * @param int $annotObjId PDF object ID of the annotation
+     * @return void
+     */
+    public function addAnnotation(string $frameId, int $annotObjId): void
+    {
+        $this->frameAnnotations[$frameId] = $annotObjId;
+    }
+
+    /**
+     * Check if any structure elements have been registered
+     * 
+     * @return bool True if structure tree is empty
+     */
+    public function isEmpty(): bool
+    {
+        return empty($this->structureTree);
+    }
+
+    /**
+     * Log structure tree as formatted tree visualization
+     */
+    private function logStructureTree(array $allSemanticElements, string $title): void
+    {
+        $buildTree = function($el, $d = 0, &$v = []) use (&$buildTree, $allSemanticElements) {
+            if (isset($v[$el->id])) return [];
+            $v[$el->id] = true;
+            $fm = $el->getFlattenMode();
+            $lines = [sprintf('%s%s%s (id=%s)%s', str_repeat('  ', $d), $d > 0 ? '├─ ' : '', 
+                strtoupper($el->tag), $el->id, $fm !== 'none' ? " [FLATTEN: $fm]" : '')];
+            foreach ($el->getChildren() as $ch) {
+                if (isset($allSemanticElements[$ch->id])) {
+                    $lines = array_merge($lines, $buildTree($ch, $d + 1, $v));
+                }
+            }
+            return $lines;
+        };
+        
+        // Find roots
+        $roots = [];
+        foreach ($allSemanticElements as $elem) {
+            $p = $elem->getParent();
+            while ($p !== null && !isset($allSemanticElements[$p->id])) $p = $p->getParent();
+            if ($p === null) $roots[] = $elem;
+        }
+        
+        SimpleLogger::log("pdf_backend_structure_tree_pruning_logs", __METHOD__, 
+            sprintf("========== %s ==========", $title)
+        );
+        foreach ($roots as $root) {
+            foreach ($buildTree($root) as $line) {
+                SimpleLogger::log("pdf_backend_structure_tree_pruning_logs", __METHOD__, $line);
+            }
+        }
+        SimpleLogger::log("pdf_backend_structure_tree_pruning_logs", __METHOD__, 
+            str_repeat("=", strlen($title) + 22)
+        );
+    }
+
+    /**
+     * Build PDF structure tree strings (NO I/O operations!)
+     * 
+     * CRITICAL: This method generates PDF object strings but does NOT call:
+     * - _newobj() - Object ID allocation handled by caller
+     * - _out() - Output handled by caller
+     * 
+     * Flow:
+     * 1. COLLECT all semantic elements (including container ancestors)
+     * 2. CALCULATE object IDs (pre-calculate for /P references)
+     * 3. BUILD PDF strings for each object
+     * 4. RETURN strings + metadata
+     * 
+     * Caller (AccessibleTCPDF::_putresources) will:
+     * - Loop through strings
+     * - Call _newobj() for each
+     * - Call _out() to output the string
+     * 
+     * @param int $currentObjId Current object counter (e.g., $tcpdf->n)
+     * @param array $pageObjIds Page object IDs for /Pg references (indexed by page number)
+     * @param array $annotationObjects Annotation objects for Link StructElems
+     * @return array ['strings' => [string, ...], 'struct_tree_root_obj_id' => int, 'document_obj_id' => int]
+     */
+    public function build(int $currentObjId, array $pageObjIds, array $annotationObjects): array
+    {
+        if (empty($this->structureTree)) {
+            return ['strings' => [], 'struct_tree_root_obj_id' => null, 'document_obj_id' => null];
+        }
+        
+        $strings = [];  // All PDF object strings to output
+        
+        // ========================================================================
+        // PHASE 1: COLLECT ALL SEMANTIC ELEMENTS
+        // ========================================================================
+        // Strategy: Start with rendered elements (have MCID), then walk tree to collect:
+        // 1. Ancestors (for hierarchy)
+        // 2. Siblings that requiresStructureElement() (for PDF/UA rules like table columns)
+        //
+        // Example: <tr><td></td><td>Text</td></tr>
+        // - TD with text is rendered → in $structureTree
+        // - Walk ancestors → collect TR
+        // - TR's children include empty TD → collect it via requiresStructureElement()
+        
+        $allSemanticElements = [];
+        
+        foreach ($this->structureTree as $struct) {
+            $semantic = $struct['semantic'];
+            
+            // Text nodes don't get StructElems - their MCIDs belong to parent
+            // But we still need to collect their ancestors!
+            $isTextNode = $semantic->isTextNode();
+            
+            if (!$isTextNode && !$semantic->isNonSemanticWrapper()) {
+                $allSemanticElements[$semantic->id] = $semantic;
+            }
+            
+            // Collect ancestors (skip wrappers) - IMPORTANT for text nodes too!
+            foreach ($semantic->getAncestors() as $ancestor) {
+                if (!$ancestor->isNonSemanticWrapper() && !isset($allSemanticElements[$ancestor->id])) {
+                    $allSemanticElements[$ancestor->id] = $ancestor;
+                    
+                    // CRITICAL: Collect ALL children of this ancestor that require structure presence
+                    // This ensures empty table cells are included for consistent column counts
+                    foreach ($ancestor->getChildren() as $child) {
+                        if ($child->requiresStructureElement() && !isset($allSemanticElements[$child->id])) {
+                            $allSemanticElements[$child->id] = $child;
+                        }
+                    }
+                }
+            }
+        }
+        
+        SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+            sprintf("Collected %d semantic elements (including required siblings)", count($allSemanticElements))
+        );
+        
+        // ========================================================================
+        // PHASE 1.5: FLATTEN STRUCTURE TREE
+        // ========================================================================
+        
+        // Log BEFORE flattening
+        $this->logStructureTree($allSemanticElements, "STRUCTURE TREE BEFORE FLATTENING");
+        
+        $elementsToRemove = [];
+        
+        foreach ($allSemanticElements as $elem) {
+            if ($elem->isFlattenWrapper()) {
+                $mode = $elem->getFlattenMode();
+                
+                // Collect all descendants via BFS
+                $descendants = [];
+                $queue = [$elem];
+                while (!empty($queue)) {
+                    $current = array_shift($queue);
+                    foreach ($current->getChildren() as $child) {
+                        if (isset($allSemanticElements[$child->id])) {
+                            $descendants[] = $child;
+                            $queue[] = $child;
+                        }
+                    }
+                }
+                
+                // Decide which descendants to remove: Keep leafs, remove containers
+                foreach ($descendants as $desc) {
+                    // CRITICAL: Never remove Link elements or their children (PDF/UA requirement)
+                    if ($desc->getPdfStructureTag() === 'Link') {
+                        continue;
+                    }
+                    
+                    // Check if any ancestor is a Link (protect Link descendants)
+                    $hasLinkAncestor = false;
+                    foreach ($desc->getAncestors() as $ancestor) {
+                        if (isset($allSemanticElements[$ancestor->id]) && $ancestor->getPdfStructureTag() === 'Link') {
+                            $hasLinkAncestor = true;
+                            break;
+                        }
+                    }
+                    if ($hasLinkAncestor) {
+                        continue;
+                    }
+                    
+                    // Check if this element has any children in the semantic collection
+                    $hasSemanticChildren = false;
+                    foreach ($desc->getChildren() as $child) {
+                        if (isset($allSemanticElements[$child->id])) {
+                            $hasSemanticChildren = true;
+                            break;
+                        }
+                    }
+                    
+                    if ($hasSemanticChildren) {
+                        // Has children → Container → Remove
+                        $elementsToRemove[$desc->id] = $desc;
+                    }
+                }
+                
+                // For exclude-self mode: also remove the flatten element itself
+                if ($mode === 'exclude-self') {
+                    $elementsToRemove[$elem->id] = $elem;
+                }
+            }
+        }
+        
+        // Remove elements from collection
+        foreach ($elementsToRemove as $id => $elem) {
+            unset($allSemanticElements[$id]);
+        }
+        
+        // Log AFTER flattening
+        $this->logStructureTree($allSemanticElements, "STRUCTURE TREE AFTER FLATTENING");
+        
+        // Pre-calculate depths for O(1) sorting
+        foreach ($allSemanticElements as $semantic) {
+            $semantic->getDepth();  // Cache depth in node
+        }
+        
+        // ========================================================================
+        // PHASE 1.6: ADJUST PARENT REFERENCES AFTER FLATTENING
+        // ========================================================================
+        // For each remaining element, walk up the parent chain until finding
+        // a parent that still exists in $allSemanticElements (i.e., not removed).
+        
+        $validIds = array_flip(array_keys($allSemanticElements));
+        
+        foreach ($allSemanticElements as $elem) {
+            $originalParent = $elem->getParent();
+            if ($originalParent === null) {
+                continue; // Root element
+            }
+            
+            // Walk up parent chain to find first valid parent
+            $current = $originalParent;
+            while ($current !== null && !isset($validIds[$current->id])) {
+                $current = $current->getParent();
+            }
+            
+            // If we found a different valid parent, update the reference
+            if ($current !== $originalParent) {
+                $elem->setParent($current);
+            }
+        }
+        
+        // ========================================================================
+        // PHASE 1.7: REBUILD CHILDREN ARRAYS AFTER PARENT ADJUSTMENT
+        // ========================================================================
+        
+        // Clear children arrays for all semantic elements
+        foreach ($allSemanticElements as $elem) {
+            $elem->clearChildren();
+        }
+        
+        // Re-add each element to its parent's children array
+        foreach ($allSemanticElements as $elem) {
+            $parent = $elem->getParent();
+            if ($parent !== null && isset($allSemanticElements[$parent->id])) {
+                $parent->addChild($elem);
+            }
+        }
+        
+        // Restore text node children
+        foreach ($this->structureTree as $struct) {
+            $node = $struct['semantic'];
+            if ($node->isTextNode()) {
+                $parent = $node->getParent();
+                if ($parent !== null && isset($allSemanticElements[$parent->id])) {
+                    $parent->addChild($node);
+                }
+            }
+        }
+        
+        $this->logStructureTree($allSemanticElements, "STRUCTURE TREE AFTER PARENT ADJUSTMENT");
+        
+        // Sort by depth (root first) and ID (parents before children)
+        usort($allSemanticElements, function($a, $b) {
+            $depthCompare = $a->getDepth() <=> $b->getDepth();
+            if ($depthCompare !== 0) {
+                return $depthCompare;
+            }
+            return (int)$a->id <=> (int)$b->id;
+        });
+        
+        // Rebuild ID-based array keys (usort creates numeric keys)
+        $allSemanticElements = array_combine(
+            array_map(fn($e) => $e->id, $allSemanticElements),
+            $allSemanticElements
+        );
+        
+        // ========================================================================
+        // PHASE 2: CALCULATE OBJECT IDs
+        // ========================================================================
+        
+        // Calculate future object IDs without allocating them
+        $nextN = $currentObjId;
+        
+        // Build Frame-ID-to-ObjID mapping
+        $frameIdToObjId = [];
+        foreach ($allSemanticElements as $semantic) {
+            $frameIdToObjId[$semantic->id] = ++$nextN;
+        }
+        
+        
+        $parentTreeObjId = ++$nextN;
+        $documentObjId = ++$nextN;
+        $structTreeRootObjId = ++$nextN;
+        
+        SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+            sprintf("Calculated ObjIDs: %d StructElems, Document=%d, StructTreeRoot=%d", 
+                count($allSemanticElements), $documentObjId, $structTreeRootObjId)
+        );
+        
+        // ========================================================================
+        // PHASE 3: BUILD PDF STRINGS (NO I/O!)
+        // ========================================================================
+        
+        // Build mapping: element ID → [MCID array, page]
+        $frameIdToMCIDs = [];
+        foreach ($this->structureTree as $struct) {
+            $node = $struct['semantic'];
+            
+            // If this is a text node, assign MCIDs to parent instead
+            if ($node->isTextNode()) {
+                $parent = $node->getParent();
+                if ($parent !== null) {
+                    $elementId = $parent->id;
+                } else {
+                    // No parent? Skip this MCID (should not happen)
+                    continue;
+                }
+            } else {
+                $elementId = $node->id;
+            }
+            
+            if (!isset($frameIdToMCIDs[$elementId])) {
+                $frameIdToMCIDs[$elementId] = [
+                    'mcids' => [],
+                    'page' => $struct['page']
+                ];
+            }
+            $frameIdToMCIDs[$elementId]['mcids'][] = $struct['mcid'];
+        }
+        
+        // Track MCID → StructElem mapping for ParentTree
+        $mcidToObjId = [];
+        
+        // Track HTML ID → StructElem Object ID (for TH/TD Headers)
+        $htmlIdToObjId = [];
+        
+        // Build StructElem strings
+        $structElemObjIds = [];
+        foreach ($allSemanticElements as $semantic) {
+            $objId = $frameIdToObjId[$semantic->id];
+            $structElemObjIds[] = $objId;
+            
+            $pdfTag = $semantic->getPdfStructureTag();
+            
+            // Track HTML id attribute for TH elements
+            $htmlId = $semantic->getAttribute('id', null);
+            if ($htmlId !== null && $htmlId !== '' && $pdfTag === 'TH') {
+                $htmlIdToObjId[$htmlId] = $objId;
+            }
+            
+            // Get parent object ID (skip non-semantic wrappers like html/body)
+            $parent = $semantic->getParent();
+            
+            // Walk up tree skipping non-semantic wrappers
+            while ($parent !== null && $parent->isNonSemanticWrapper()) {
+                $parent = $parent->getParent();
+            }
+            
+            $parentObjId = $parent !== null && isset($frameIdToObjId[$parent->id])
+                ? $frameIdToObjId[$parent->id]
+                : $documentObjId;
+            
+            // Build StructElem object string
+            $out = '<<';
+            $out .= ' /Type /StructElem';
+            $out .= ' /S /' . $pdfTag;
+            $out .= sprintf(' /P %d 0 R', $parentObjId);
+            
+            // Add /K (kids)
+            if (isset($frameIdToMCIDs[$semantic->id])) {
+                // Element was rendered → has MCIDs
+                $mcids = $frameIdToMCIDs[$semantic->id]['mcids'];
+                $pageNum = $frameIdToMCIDs[$semantic->id]['page'];
+                
+                // Track MCID → StructElem for ParentTree
+                foreach ($mcids as $mcid) {
+                    $mcidToObjId[$mcid] = $objId;
+                }
+                
+                // Add page reference
+                if (isset($pageObjIds[$pageNum])) {
+                    $out .= sprintf(' /Pg %d 0 R', $pageObjIds[$pageNum]);
+                }
+                
+                // Build /K array with MCIDs and optional /OBJR
+                $kItems = $mcids;
+                
+                // Check if this element has an annotation
+                if (isset($this->frameAnnotations[$semantic->id])) {
+                    $kItems[] = '<< /Type /OBJR /Obj ' . $this->frameAnnotations[$semantic->id] . ' 0 R >>';
+                }
+                
+                // Add MCID(s) and optional /OBJR
+                if (count($kItems) === 1) {
+                    $out .= ' /K ' . $kItems[0];
+                } else {
+                    $out .= ' /K [' . implode(' ', $kItems) . ']';
+                }
+            } else {
+                // Container element → has child StructElems
+                $children = $semantic->getChildren();
+                
+                // Collect actual children, skipping non-semantic wrappers and getting their children instead
+                $actualChildren = [];
+                foreach ($children as $child) {
+                    if ($child->isNonSemanticWrapper()) {
+                        // Skip wrapper, add its children instead
+                        foreach ($child->getChildren() as $grandchild) {
+                            $actualChildren[] = $grandchild;
+                        }
+                    } else {
+                        $actualChildren[] = $child;
+                    }
+                }
+                
+                if (!empty($actualChildren)) {
+                    $childObjIds = array_filter(
+                        array_map(fn($child) => $frameIdToObjId[$child->id] ?? null, $actualChildren),
+                        fn($objId) => $objId !== null && $objId > 0
+                    );
+                    
+                    if (!empty($childObjIds)) {
+                        $out .= ' /K [' . implode(' 0 R ', $childObjIds) . ' 0 R]';
+                    }
+                }
+            }
+            
+            // Add alt text for images (priority: alt attribute > aria-label)
+            if ($semantic->isImage()) {
+                $altText = null;
+                $altSource = null;
+                
+                // Priority 1: alt attribute
+                if ($semantic->hasAltText()) {
+                    $altText = $semantic->getAltText();
+                    $altSource = 'alt';
+                }
+                // Priority 2: aria-label as fallback
+                elseif ($semantic->hasAriaLabel()) {
+                    $altText = $semantic->getAriaLabel();
+                    $altSource = 'aria-label';
+                }
+                
+                // Add /Alt if we have text from either source
+                if ($altText !== null && trim($altText) !== '') {
+                    $escapedAlt = TCPDF_STATIC::_escape($altText);
+                    $out .= ' /Alt (' . $escapedAlt . ')';
+                    
+                    SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+                        sprintf("Image frame %d: /Alt from %s = '%s'", $semantic->id, $altSource, $altText)
+                    );
+                } else {
+                    SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+                        sprintf("Image frame %d: No /Alt text (no alt or aria-label)", $semantic->id)
+                    );
+                }
+            }
+            
+            // Title for elements with aria-label OR auto-generated for table rows/cells
+            $titleText = null;
+
+            if (!$semantic->isImage() && $semantic->hasAriaLabel()) {
+                $titleText = $semantic->getAriaLabel();
+            } elseif ($pdfTag === 'TR' && ($parent = $semantic->getParent())) {
+                // Count TR position among siblings
+                $rowNum = 1;
+                foreach ($parent->getChildren() as $sibling) {
+                    if ($sibling->id === $semantic->id) break;
+                    if ($sibling->tag === 'tr') $rowNum++;
+                }
+                $titleText = "Row #$rowNum";
+            } elseif (($pdfTag === 'TH' || $pdfTag === 'TD') && ($trParent = $semantic->getParent()) && $trParent->tag === 'tr') {
+                // Count TR row number, then TD/TH col number
+                $rowNum = 1;
+                if ($tableSection = $trParent->getParent()) {
+                    foreach ($tableSection->getChildren() as $tr) {
+                        if ($tr->id === $trParent->id) break;
+                        if ($tr->tag === 'tr') $rowNum++;
+                    }
+                }
+                $colNum = 1;
+                foreach ($trParent->getChildren() as $cell) {
+                    if ($cell->id === $semantic->id) break;
+                    if (in_array($cell->tag, ['th', 'td'], true)) $colNum++;
+                }
+                $titleText = "row #$rowNum, col #$colNum";
+            }
+
+            if ($titleText !== null && trim($titleText) !== '') {
+                $escapedTitle = TCPDF_STATIC::_escape($titleText);
+                $out .= ' /T (' . $escapedTitle . ')';
+            }
+            
+            // Add TH Scope attribute
+            if ($pdfTag === 'TH') {
+                $scope = 'Column';
+                $out .= ' /A << /O /Table /Scope /' . $scope . ' >>';
+                
+                $thId = $semantic->getAttribute('id', null);
+                if ($thId !== null && $thId !== '') {
+                    $out .= ' /ID (' . TCPDF_STATIC::_escape($thId) . ')';
+                }
+            }
+            
+            // Add TD Headers attribute
+            if ($pdfTag === 'TD') {
+                $headersAttr = $semantic->getAttribute('headers', null);
+                if ($headersAttr !== null && $headersAttr !== '') {
+                    $headerIds = array_filter(array_map('trim', explode(' ', trim($headersAttr))));
+                    if (!empty($headerIds)) {
+                        $headerIdStrings = array_map(function($id) {
+                            return '(' . TCPDF_STATIC::_escape($id) . ')';
+                        }, $headerIds);
+                        $out .= ' /A << /O /Table /Headers [' . implode(' ', $headerIdStrings) . '] >>';
+                    }
+                }
+            }
+            
+            // Add RowSpan/ColSpan for table cells
+            if ($pdfTag === 'TD' || $pdfTag === 'TH') {
+                $rowspan = (int)$semantic->getAttribute('rowspan', '1');
+                if ($rowspan > 1) {
+                    $out .= ' /RowSpan ' . $rowspan;
+                }
+                
+                $colspan = (int)$semantic->getAttribute('colspan', '1');
+                if ($colspan > 1) {
+                    $out .= ' /ColSpan ' . $colspan;
+                }
+            }
+            
+            $out .= ' >>';
+            $out .= "\n".'endobj';
+            
+            $strings[] = $out;
+            
+            SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+                sprintf("Built StructElem string for obj %d: /%s (frame %d, parent obj %d)", 
+                    $objId, $pdfTag, $semantic->id, $parentObjId)
+            );
+        }
+        
+        
+        // Collect top-level StructElem IDs (parent not in structure tree)
+        $topLevelObjIds = [];
+        foreach ($allSemanticElements as $semantic) {
+            $parent = $semantic->getParent();
+            if ($parent === null || !isset($frameIdToObjId[$parent->id])) {
+                $topLevelObjIds[] = $frameIdToObjId[$semantic->id];
+            }
+        }
+        
+        SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+            sprintf("Document /K will reference %d top-level StructElems (no more separate Link objects)", count($topLevelObjIds))
+        );
+        
+        // Build ParentTree string
+        // ARCHITECTURE: ParentTree maps:
+        // 1. Page /StructParents (index 1) → ARRAY of all StructElems on page
+        // 2. Annotation /StructParent (indices 10000, 10001, ...) → individual StructElem
+        //
+        // CRITICAL: MCIDs are NOT mapped in ParentTree!
+        // MCIDs reference StructElems via /K arrays IN the StructElems!
+        $out = '<< /Nums [';
+        
+        // Add Page /StructParents → Array of all StructElems
+        $out .= ' 1 [';  // Adobe ignores index 0, use 1 for first page
+        if (!empty($mcidToObjId)) {
+            ksort($mcidToObjId);
+            $mcidObjRefs = array_map(fn($objId) => $objId . ' 0 R', $mcidToObjId);
+            $out .= implode(' ', $mcidObjRefs);
+        }
+        $out .= ']';
+        
+        // Annotation /StructParent indices → StructElem refs
+        // Performance: Create reverse map once (O(n)) instead of array_search per annotation (O(n²))
+        $annotToFrame = array_flip($this->frameAnnotations);  // annotObjId → frameId
+        
+        foreach ($annotationObjects as $annot) {
+            $structParent = $annot['struct_parent'];
+            $annotObjId = $annot['obj_id'];
+            
+            // O(1) lookup instead of O(n) search
+            if (isset($annotToFrame[$annotObjId], $frameIdToObjId[$annotToFrame[$annotObjId]])) {
+                $frameId = $annotToFrame[$annotObjId];
+                $structElemObjId = $frameIdToObjId[$frameId];
+                $out .= sprintf(' %d %d 0 R', $structParent, $structElemObjId);
+            }
+        }
+        
+        $out .= ' ] >>';
+        $out .= "\n".'endobj';
+        $strings[] = $out;
+        
+        // Build Document string
+        $out = '<<';
+        $out .= ' /Type /StructElem';
+        $out .= ' /S /Document';
+        $out .= sprintf(' /P %d 0 R', $structTreeRootObjId);
+        $out .= ' /K [' . implode(' 0 R ', $topLevelObjIds) . ' 0 R]';
+        $out .= ' >>';
+        $out .= "\n".'endobj';
+        $strings[] = $out;
+        
+        // Build StructTreeRoot string
+        $out = '<<';
+        $out .= ' /Type /StructTreeRoot';
+        $out .= sprintf(' /K [%d 0 R]', $documentObjId);
+        $out .= sprintf(' /ParentTree %d 0 R', $parentTreeObjId);
+        $out .= ' /ParentTreeNextKey 3';
+        $out .= ' /RoleMap << /Strong /Span /Em /Span >>';
+        
+        // Build IDTree for TH elements
+        if (!empty($htmlIdToObjId)) {
+            $idTreeEntries = [];
+            foreach ($htmlIdToObjId as $htmlId => $objId) {
+                $idTreeEntries[] = '(' . TCPDF_STATIC::_escape($htmlId) . ') ' . $objId . ' 0 R';
+            }
+            $out .= ' /IDTree << /Names [' . implode(' ', $idTreeEntries) . '] >>';
+        }
+        
+        $out .= ' >>';
+        $out .= "\n".'endobj';
+        $strings[] = $out;
+        
+        SimpleLogger::log("pdf_backend_structure_tree_logs", __METHOD__, 
+            sprintf("Generated %d PDF object strings", count($strings))
+        );
+
+        $this->logStructureTree($allSemanticElements, "FINAL SEMANTIC TREE (AFTER ALL PROCESSING)");
+
+        // ========================================================================
+        // RETURN STRINGS + METADATA AND CACHE STRUCTURE OBJ ID
+        // ========================================================================
+        $this->structureObjId = $structTreeRootObjId;
+        
+        return [
+            'strings' => $strings,
+            'struct_tree_root_obj_id' => $structTreeRootObjId,
+            'document_obj_id' => $documentObjId
+        ];
+    }
+}

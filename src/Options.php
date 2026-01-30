@@ -235,6 +235,17 @@ class Options
     private $isPdfAEnabled = false;
 
     /**
+     * Enable PDF/UA compliance mode
+     *
+     * ==== EXPERIMENTAL ====
+     * This feature is currently only supported with the TCPDF backend and will
+     * have no effect if used with any other.
+     *
+     * @var bool
+     */
+    private $isPdfUaEnabled = false;
+
+    /**
      * Enable inline JavaScript
      *
      * If this setting is set to true then DOMPDF will automatically insert
@@ -304,9 +315,16 @@ class Options
     private $debugLayoutPaddingBox = true;
 
     /**
+     * Logger options storage (for logging channels and other dynamic options)
+     *
+     * @var array
+     */
+    private $loggerOptions = [];
+
+    /**
      * The PDF rendering backend to use
      *
-     * Valid settings are 'PDFLib', 'CPDF', 'GD', and 'auto'. 'auto' will
+     * Valid settings are 'PDFLib', 'CPDF', 'TCPDF', 'GD', and 'auto'. 'auto' will
      * look for PDFLib and use it if found, or if not it will fall back on
      * CPDF. 'GD' renders PDFs to graphic files. {@link Dompdf\CanvasFactory}
      * ultimately determines which rendering class to instantiate
@@ -405,10 +423,14 @@ class Options
                 $methodForCall = "setIsHtml5ParserEnabled";
             } elseif ($methodForMatch === 'enableFontSubsetting') {
                 $methodForCall = "setIsFontSubsettingEnabled";
+            } elseif ($methodForMatch === 'enablePdfUa') {
+                $methodForCall = "setIsPdfUaEnabled";
             }
 
             if (method_exists($this, $methodForCall)) {
                 $this->{$methodForCall}($value);
+            } elseif (substr($key, -5) === '_logs') {
+                $this->loggerOptions[$key] = $value;
             }
         }
 
@@ -436,10 +458,14 @@ class Options
             $methodForCall = "getIsHtml5ParserEnabled";
         } elseif ($methodForMatch === 'enableFontSubsetting') {
             $methodForCall = "getIsFontSubsettingEnabled";
+        } elseif ($methodForMatch === 'enablePdfUa') {
+            $methodForCall = "getIsPdfUaEnabled";
         }
 
         if (method_exists($this, $methodForCall)) {
             return $this->{$methodForCall}();
+        } elseif (substr($key, -5) === '_logs') {
+            return isset($this->loggerOptions[$key]) ? $this->loggerOptions[$key] : false;
         }
         
         return null;
@@ -1074,6 +1100,32 @@ class Options
     }
 
     /**
+     * @param boolean $isPdfUaEnabled
+     * @return $this
+     */
+    public function setIsPdfUaEnabled($isPdfUaEnabled)
+    {
+        $this->isPdfUaEnabled = $isPdfUaEnabled;
+        return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getIsPdfUaEnabled()
+    {
+        return $this->isPdfUaEnabled;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isPdfUaEnabled()
+    {
+        return $this->getIsPdfUaEnabled();
+    }
+
+    /**
      * @param string $logOutputFile
      * @return $this
      */
@@ -1153,6 +1205,15 @@ class Options
     public function getHttpContext()
     {
         return $this->httpContext;
+    }
+
+    /**
+     * Get all custom options (for *_logs handling)
+     * @return array
+     */
+    public function getLoggerOptions()
+    {
+        return $this->loggerOptions;
     }
 
 

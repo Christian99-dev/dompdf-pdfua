@@ -58,6 +58,8 @@ class Renderer extends AbstractRenderer
         global $_dompdf_debug;
 
         $this->_check_callbacks("begin_frame", $frame);
+        
+        $this->_canvas->setCurrentFrameId((string) $frame->get_id());
 
         if ($_dompdf_debug) {
             echo $frame;
@@ -216,6 +218,8 @@ class Renderer extends AbstractRenderer
         if ($hasTransform) {
             $this->_canvas->restore();
         }
+        
+        $this->_canvas->setCurrentFrameId(null);
 
         // Check for end frame callback
         $this->_check_callbacks("end_frame", $frame);

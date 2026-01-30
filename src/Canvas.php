@@ -484,4 +484,31 @@ interface Canvas
      * @return string
      */
     function output($options = []);
+
+    /**
+     * Set the current frame node in the semantic tree (NEW - parallel to setCurrentFrameId!)
+     * 
+     * This is a tunnel method that sets the current node in the semantic tree structure.
+     * Uses O(1) HashMap lookup instead of searching through arrays.
+     * 
+     * ! no implementation needed -- only use the trait in the canvas implementation
+     * 
+     * @param string|null $frameId The frame ID (e.g., "3", "4", "5") or null to clear
+     */
+    public function setCurrentFrameId(?string $frameId): void;
+
+    /**
+     * Register semantic elements for accessibility (SIMPLIFIED APPROACH)
+     * 
+     * DUAL REGISTRATION:
+     * - OLD: Registers to $_semantic_elements array (KEPT for compatibility!)
+     * - NEW: Registers to $_semantic_tree (parallel tree structure!)
+     * 
+     * Only registers semantic containers, not text fragments.
+     * Text fragments will automatically inherit from their immediate parent container.
+     * This eliminates the need for complex backward searching and line-break detection.
+     * 
+     * @param Frame $frame The root frame to start from
+     */
+    public function registerAllSemanticElements(Frame $frame): void;
 }

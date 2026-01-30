@@ -16,6 +16,7 @@ use Dompdf\Image\Cache;
 use Dompdf\Css\Stylesheet;
 use Dompdf\Helpers;
 use Masterminds\HTML5;
+use Dompdf\SimpleLogger;
 
 /**
  * Dompdf - PHP5 HTML to PDF renderer
@@ -256,6 +257,13 @@ class Dompdf
             $this->setOptions(new Options($options));
         } else {
             $this->setOptions(new Options());
+        }
+
+                        // Initialize logging channels based on *_logs options
+        foreach ($this->options->getLoggerOptions() as $key => $value) {
+            if (substr($key, -5) === '_logs' && $value) {
+                SimpleLogger::enableChannel($key);
+            }
         }
 
         $versionFile = realpath(__DIR__ . '/../VERSION');
@@ -810,6 +818,13 @@ class Dompdf
 
         $root->set_containing_block(0, 0, $canvas->get_width(), $canvas->get_height());
         $root->set_renderer(new Renderer($this));
+
+        // NEW: Register all semantic elements BEFORE rendering starts
+        // Get the root frame from the FrameTree
+        // The tree will only populate, if a SemanticTree is set in the Canvas
+        // This saves unnecessary processing if no semantic processing is desired
+        $rootFrame = $this->tree->get_root();
+        $canvas->registerAllSemanticElements($rootFrame);
 
         // This is where the magic happens:
         $root->reflow();
