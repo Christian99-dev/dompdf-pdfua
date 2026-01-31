@@ -811,6 +811,13 @@ class Dompdf
         $root->set_containing_block(0, 0, $canvas->get_width(), $canvas->get_height());
         $root->set_renderer(new Renderer($this));
 
+        // Debug: Log frame tree before reflow
+        if ($this->options->getDebugFrameTree()) {
+            echo "=== Frame Tree (before reflow) ===\n";
+            $this->printFrameTree($this->tree->get_root());
+            echo "=== End Frame Tree ===\n";
+        }
+
         // This is where the magic happens:
         $root->reflow();
 
@@ -873,6 +880,50 @@ class Dompdf
         ob_clean();
 
         file_put_contents($logOutputFile, $out);
+    }
+
+    /**
+     * Print frame tree in console-style format
+     *
+     * @param Frame $frame
+     * @param string $prefix
+     * @param bool $isLast
+     */
+    private function printFrameTree(Frame $frame, string $prefix = '', bool $isLast = true): void
+    {
+        $node = $frame->get_node();
+        $nodeName = $node->nodeName ?? 'unknown';
+        $nodeId = method_exists($node, 'getAttribute') ? ($node->getAttribute('id') ?: '') : '';
+        $nodeClass = method_exists($node, 'getAttribute') ? ($node->getAttribute('class') ?: '') : '';
+        
+        // Build info line
+        $info = $nodeName;
+        if ($nodeId) $info .= '#' . $nodeId;
+        if ($nodeClass) $info .= '.' . str_replace(' ', '.', $nodeClass);
+        
+        // Add display type if available
+        if (method_exists($frame, 'get_style')) {
+            $style = $frame->get_style();
+            if ($style && method_exists($style, 'display')) {
+                $info .= ' [' . $style->display . ']';
+            }
+        }
+
+        // Print current node
+        $connector = $isLast ? '└── ' : '├── ';
+        echo $prefix . $connector . $info . "\n";
+        
+        // Print children
+        $children = [];
+        foreach ($frame->get_children() as $child) {
+            $children[] = $child;
+        }
+        $childCount = count($children);
+        foreach ($children as $index => $child) {
+            $isLastChild = ($index === $childCount - 1);
+            $childPrefix = $prefix . ($isLast ? '    ' : '│   ');
+            $this->printFrameTree($child, $childPrefix, $isLastChild);
+        }
     }
 
     /**

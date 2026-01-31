@@ -304,6 +304,11 @@ class Options
     private $debugLayoutPaddingBox = true;
 
     /**
+     * @var bool
+     */
+    private $debugFrameTree = false;
+
+    /**
      * The PDF rendering backend to use
      *
      * Valid settings are 'PDFLib', 'CPDF', 'GD', and 'auto'. 'auto' will
@@ -715,6 +720,24 @@ class Options
     public function getDebugLayoutPaddingBox()
     {
         return $this->debugLayoutPaddingBox;
+    }
+
+    /**
+     * @param boolean $debugFrameTree
+     * @return $this
+     */
+    public function setDebugFrameTree($debugFrameTree)
+    {
+        $this->debugFrameTree = $debugFrameTree;
+        return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getDebugFrameTree()
+    {
+        return $this->debugFrameTree;
     }
 
     /**
