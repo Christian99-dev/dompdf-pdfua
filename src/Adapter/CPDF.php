@@ -194,22 +194,22 @@ class CPDF implements Canvas
         $this->_pdf->addInfo("CreationDate", "D:$time");
         $this->_pdf->addInfo("ModDate", "D:$time");
 
-        // Log CPDF flags if debugCpdf is enabled
-        if ($this->_dompdf->getOptions()->getDebugCpdf()) {
-            print "[CPDF] isPdfAEnabled: " . ($this->_dompdf->getOptions()->isPdfAEnabled() ? 'true' : 'false') . "\n";
-            print "[CPDF] isPdfUaEnabled: " . ($this->_dompdf->getOptions()->isPdfUaEnabled() ? 'true' : 'false') . "\n";
-        }
-
         if($this->_dompdf->getOptions()->isPdfAEnabled() && 
             $this->_dompdf->getOptions()->isPdfUaEnabled()) {
             throw new Exception("Cannot enable both PDF/A and PDF/UA compliance modes simultaneously");
         }
 
         if ($this->_dompdf->getOptions()->isPdfAEnabled()) {
+            if ($this->_dompdf->getOptions()->getDebugCpdf()) {
+                print "[CPDF] Enabling PDF/A compliance\n";
+            }
             $this->_pdf->enablePdfACompliance();
         }
 
         if ($this->_dompdf->getOptions()->isPdfUaEnabled()) {
+            if ($this->_dompdf->getOptions()->getDebugCpdf()) {
+                print "[CPDF] Enabling PDF/UA compliance\n";
+            }
             $this->_pdf->enablePdfUACompliance();
         }
 
