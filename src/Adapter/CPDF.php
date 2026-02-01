@@ -15,8 +15,6 @@ use Dompdf\FontMetrics;
 use Dompdf\Helpers;
 use Dompdf\Image\Cache;
 use FontLib\Exception\FontNotFoundException;
-
-require_once __DIR__ . '/../../CpdfPdfua/CpdfPdfua.php';
 use Dompdf\CpdfPdfua\CpdfPdfua;
 
 /**
