@@ -235,6 +235,17 @@ class Options
     private $isPdfAEnabled = false;
 
     /**
+     * Enable PDF/UA compliance mode
+     *
+     * ==== EXPERIMENTAL ====
+     * This feature is currently only supported with the CPDF backend and will
+     * have no effect if used with any other.
+     *
+     * @var bool
+     */
+    private $isPdfUaEnabled = false;
+
+    /**
      * Enable inline JavaScript
      *
      * If this setting is set to true then DOMPDF will automatically insert
@@ -307,6 +318,11 @@ class Options
      * @var bool
      */
     private $debugFrameTree = false;
+
+    /**
+     * @var bool
+     */
+    private $debugCpdf = false;
 
     /**
      * The PDF rendering backend to use
@@ -404,6 +420,8 @@ class Options
                 $methodForCall = "setIsRemoteEnabled";
             } elseif ($methodForMatch === 'enablePdfA') {
                 $methodForCall = "setIsPdfAEnabled";
+            } elseif ($methodForMatch === 'enablePdfUA') {
+                $methodForCall = "setIsPdfUaEnabled";
             } elseif ($methodForMatch === 'enableJavascript') {
                 $methodForCall = "setIsJavascriptEnabled";
             } elseif ($methodForMatch === 'enableHtml5Parser') {
@@ -435,6 +453,8 @@ class Options
             $methodForCall = "getIsRemoteEnabled";
         } elseif ($methodForMatch === 'enablePdfA') {
             $methodForCall = "getIsPdfAEnabled";
+        } elseif ($methodForMatch === 'enablePdfUA') {
+            $methodForCall = "getIsPdfUaEnabled";
         } elseif ($methodForMatch === 'enableJavascript') {
             $methodForCall = "getIsJavascriptEnabled";
         } elseif ($methodForMatch === 'enableHtml5Parser') {
@@ -756,6 +776,24 @@ class Options
     public function getDebugPng()
     {
         return $this->debugPng;
+    }
+
+    /**
+     * @param boolean $debugCpdf
+     * @return $this
+     */
+    public function setDebugCpdf($debugCpdf)
+    {
+        $this->debugCpdf = $debugCpdf;
+        return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getDebugCpdf()
+    {
+        return $this->debugCpdf;
     }
 
     /**
@@ -1094,6 +1132,32 @@ class Options
     public function isPdfAEnabled()
     {
         return $this->getIsPdfAEnabled();
+    }
+
+    /**
+     * @param boolean $isPdfUaEnabled
+     * @return $this
+     */
+    public function setIsPdfUaEnabled($isPdfUaEnabled)
+    {
+        $this->isPdfUaEnabled = $isPdfUaEnabled;
+        return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function getIsPdfUaEnabled()
+    {
+        return $this->isPdfUaEnabled;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isPdfUaEnabled()
+    {
+        return $this->getIsPdfUaEnabled();
     }
 
     /**

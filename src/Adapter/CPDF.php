@@ -186,6 +186,12 @@ class CPDF implements Canvas
         $this->_pdf->addInfo("CreationDate", "D:$time");
         $this->_pdf->addInfo("ModDate", "D:$time");
 
+        // Log CPDF flags if debugCpdf is enabled
+        if ($this->_dompdf->getOptions()->getDebugCpdf()) {
+            print "[CPDF] isPdfAEnabled: " . ($this->_dompdf->getOptions()->isPdfAEnabled() ? 'true' : 'false') . "\n";
+            print "[CPDF] isPdfUaEnabled: " . ($this->_dompdf->getOptions()->isPdfUaEnabled() ? 'true' : 'false') . "\n";
+        }
+
         if ($this->_dompdf->getOptions()->isPdfAEnabled()) {
             $this->_pdf->enablePdfACompliance();
         }
