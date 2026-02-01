@@ -325,6 +325,11 @@ class Options
     private $debugCpdf = false;
 
     /**
+     * @var bool
+     */
+    private $debugCpdfTagging = false;
+
+    /**
      * The PDF rendering backend to use
      *
      * Valid settings are 'PDFLib', 'CPDF', 'GD', and 'auto'. 'auto' will
@@ -794,6 +799,24 @@ class Options
     public function getDebugCpdf()
     {
         return $this->debugCpdf;
+    }
+
+    /**
+     * @param boolean $debugCpdfTagging
+     * @return $this
+     */
+    public function setDebugCpdfTagging($debugCpdfTagging)
+    {
+        $this->debugCpdfTagging = $debugCpdfTagging;
+        return $this;
+    }
+    
+    /**
+     * @return boolean
+     */
+    public function getDebugCpdfTagging()
+    {
+        return $this->debugCpdfTagging;
     }
 
     /**
