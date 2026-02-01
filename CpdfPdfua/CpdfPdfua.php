@@ -20,9 +20,9 @@ class CpdfPdfua extends Cpdf
     private $debugEnabled = false;
 
     /**
-     * @var \DOMNode Current DOM node being processed
+     * @var SemanticNode Current SemanticNode being processed
      */
-    private $currentDomNode;
+    private $currentSemanticNode;
 
     /**
      * Constructor
@@ -33,14 +33,14 @@ class CpdfPdfua extends Cpdf
     }
 
     /**
-    * Sets the current DOM node being processed
+    * Sets the current SemanticNode being processed
+    * @param \DOMNode $node
     */
     public function setCurrentDomNode($node): void
     {
-        $this->currentDomNode = $node;
+        $this->currentSemanticNode = new SemanticNode($node);
         if ($this->debugEnabled) {
-            $nodeInfo = $node ? $node->nodeName : 'null';
-            print "[CPDF PDFUA] setCurrentDomNode(node={$nodeInfo})\n";
+            print "[CPDF PDFUA] setCurrentSemanticNode({$this->currentSemanticNode})\n";
         }
     }
 
