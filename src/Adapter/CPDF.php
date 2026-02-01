@@ -15,6 +15,7 @@ use Dompdf\FontMetrics;
 use Dompdf\Helpers;
 use Dompdf\Image\Cache;
 use FontLib\Exception\FontNotFoundException;
+use Dompdf\CpdfPdfua\CpdfPdfua;
 
 /**
  * PDF rendering interface
@@ -109,7 +110,7 @@ class CPDF implements Canvas
     /**
      * Instance of Cpdf class
      *
-     * @var \Dompdf\Cpdf
+     * @var CpdfPdfua
      */
     protected $_pdf;
 
@@ -174,12 +175,17 @@ class CPDF implements Canvas
             $this->_dompdf = $dompdf;
         }
 
-        $this->_pdf = new \Dompdf\Cpdf(
+        $this->_pdf = new CpdfPdfua(
             $size,
             true,
             $this->_dompdf->getOptions()->getFontCache(),
             $this->_dompdf->getOptions()->getTempDir()
         );
+        
+        // Enable debug logging if debugCpdf option is set
+        if ($this->_pdf instanceof CpdfPdfua) {
+            $this->_pdf->setDebugEnabled($this->_dompdf->getOptions()->getDebugCpdf());
+        }
 
         $this->_pdf->addInfo("Producer", sprintf("%s + CPDF", $this->_dompdf->version));
         $time = substr_replace(date('YmdHisO'), '\'', -2, 0) . '\'';
@@ -192,8 +198,17 @@ class CPDF implements Canvas
             print "[CPDF] isPdfUaEnabled: " . ($this->_dompdf->getOptions()->isPdfUaEnabled() ? 'true' : 'false') . "\n";
         }
 
+        if($this->_dompdf->getOptions()->isPdfAEnabled() && 
+            $this->_dompdf->getOptions()->isPdfUaEnabled()) {
+            throw new Exception("Cannot enable both PDF/A and PDF/UA compliance modes simultaneously");
+        }
+
         if ($this->_dompdf->getOptions()->isPdfAEnabled()) {
             $this->_pdf->enablePdfACompliance();
+        }
+
+        if ($this->_dompdf->getOptions()->isPdfUaEnabled()) {
+            $this->_pdf->enablePdfUACompliance();
         }
 
         $this->_width = $size[2] - $size[0];
@@ -210,9 +225,9 @@ class CPDF implements Canvas
     }
 
     /**
-     * Returns the Cpdf instance
+     * Returns the CpdfPdfua instance
      *
-     * @return \Dompdf\Cpdf
+     * @return CpdfPdfua
      */
     public function get_cpdf()
     {
