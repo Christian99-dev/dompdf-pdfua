@@ -12,7 +12,8 @@
     ],
     "autoload": {
         "psr-4": {
-            "Dompdf\\": "src/"
+            "Dompdf\\": "src/",
+            "Dompdf\\CpdfPdfua\\": "CpdfPdfua/"
         },
         "classmap": [
             "lib/"
