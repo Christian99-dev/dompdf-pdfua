@@ -1,10 +1,12 @@
 <?php
+
 /**
  * CpdfPdfua - Extended Cpdf class with PDF/UA support
  *
  * @package CpdfPdfua
  * @author  Christian Keller
  */
+
 namespace Dompdf\CpdfPdfua;
 
 use Dompdf\Cpdf;
@@ -18,11 +20,28 @@ class CpdfPdfua extends Cpdf
     private $debugEnabled = false;
 
     /**
+     * @var \DOMNode Current DOM node being processed
+     */
+    private $currentDomNode;
+
+    /**
      * Constructor
      */
     public function __construct($pageSize = [0, 0, 612, 792], $isUnicode = false, $fontcache = '', $tmp = '')
     {
         parent::__construct($pageSize, $isUnicode, $fontcache, $tmp);
+    }
+
+    /**
+    * Sets the current DOM node being processed
+    */
+    public function setCurrentDomNode($node): void
+    {
+        $this->currentDomNode = $node;
+        if ($this->debugEnabled) {
+            $nodeInfo = $node ? $node->nodeName : 'null';
+            print "[CPDF PDFUA] setCurrentDomNode(node={$nodeInfo})\n";
+        }
     }
 
     /**

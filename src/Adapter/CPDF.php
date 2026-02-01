@@ -370,6 +370,18 @@ class CPDF implements Canvas
     }
 
     /**
+     * Provides semantic information about the currently rendered DOM node to the backend.
+     *
+     * @param \DOMNode $node The DOM node being rendered
+     */
+    public function set_current_dom_node($node): void
+    {
+        if ($this->_pdf instanceof CpdfPdfua) {
+            $this->_pdf->setCurrentDomNode($node);
+        }
+    }
+
+    /**
      * Sets the stroke color
      *
      * See {@link Style::set_color()} for the format of the color array.

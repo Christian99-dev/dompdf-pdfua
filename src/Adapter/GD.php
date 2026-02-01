@@ -243,6 +243,16 @@ class GD implements Canvas
         $this->_page_count = $count;
     }
 
+    /**
+     * Provides semantic information about the currently rendered DOM node to the backend.
+     *
+     * @param \DOMNode $node The DOM node being rendered
+     */
+    public function set_current_dom_node($node): void
+    {
+        // No-op in GD adapter
+    }
+
     public function set_opacity(float $opacity, string $mode = "Normal"): void
     {
         // FIXME

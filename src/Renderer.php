@@ -64,6 +64,9 @@ class Renderer extends AbstractRenderer
             flush();
         }
 
+        // Set current DOM node
+        $this->_canvas->set_current_dom_node($frame->get_node());
+
         $style = $frame->get_style();
 
         if (in_array($style->visibility, ["hidden", "collapse"], true)) {

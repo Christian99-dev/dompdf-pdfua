@@ -482,6 +482,16 @@ class PDFLib implements Canvas
     }
 
     /**
+     * Provides semantic information about the currently rendered DOM node to the backend.
+     *
+     * @param \DOMNode $node The DOM node being rendered
+     */
+    public function set_current_dom_node($node): void
+    {
+        // No-op in PDFLib adapter
+    }
+
+    /**
      * Sets the line style
      *
      * @param float  $width

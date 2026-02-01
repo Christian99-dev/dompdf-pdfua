@@ -56,6 +56,13 @@ interface Canvas
     function set_page_count($count);
 
     /**
+     * Provides semantic information about the currently rendered DOM node to the backend.
+     *
+     * @param \DOMNode $node The DOM node being rendered, or null to clear context
+     */
+    public function set_current_dom_node($node): void;
+
+    /**
      * Draws a line from x1,y1 to x2,y2
      *
      * See {@link Cpdf::setLineStyle()} for a description of the format of the
