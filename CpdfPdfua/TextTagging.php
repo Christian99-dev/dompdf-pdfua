@@ -1,4 +1,5 @@
 <?php
+
 namespace Dompdf\CpdfPdfua;
 
 class TextTagging
@@ -23,11 +24,11 @@ class TextTagging
         $decision = $this->analyze($stateManager);
 
         print "[TextTagging] [TaggingDecision] {$decision->name}\n";
-        
+
         // PHASE 2: Execute - Do it!
         return $this->execute($decision, $stateManager, $textCallback, $addContentCallback);
     }
-    
+
     /**
      * Analyze text rendering decision
      * 
@@ -39,25 +40,22 @@ class TextTagging
     public function analyze(
         TaggingStateManager $stateManager
     ): TaggingDecision {
-        // the SemanticNode will always be a #text node, so we need to jump to the next parent for tagging information.
 
         $currentSemanticNode = $stateManager->getCurrentSemanticNode();
 
-        $isTextNode = $currentSemanticNode->isTextNode();
-        $pdfTag = $currentSemanticNode->getPdfStructureTag();
         $isArtifact = $currentSemanticNode->isArtifactNode();
         $inSameParent = $currentSemanticNode->hasSameStructuralParentAs(
             $stateManager->getPreviousSemanticNode()
         );
 
         // print "[TextTagging] analyze(): \n\tisTextNode=" . ($isTextNode ? 'true' : 'false') . ",\n\tpdfTag=" . ($pdfTag ?? 'null') . ", \n\tisArtifact=" . ($isArtifact ? 'true' : 'false') . ", \n\tinSameParent=" . ($inSameParent ? 'true' : 'false') . "\n";
-        
-        if(!$isTextNode) {
-            // no text node, or no pdf tag associated
-            // this should not happen, but if it does, we just continue without tagging
+
+        if (!$currentSemanticNode->isTextNode()) {
+            // no text node, this should not happen, but if it does, we just continue without tagging
+            // the SemanticNode will (should) always be a #text node in this case.
             return TaggingDecision::CONTINUE;
         }
-            
+
         switch ($stateManager->getState()) {
             case TaggingState::NONE:
                 if ($isArtifact) {
@@ -67,17 +65,17 @@ class TextTagging
                 }
             case TaggingState::SEMANTIC:
 
-                if($inSameParent) {
+                if ($inSameParent) {
                     return TaggingDecision::CONTINUE;
                 }
 
-                if($isArtifact) {
+                if ($isArtifact) {
                     return TaggingDecision::CLOSE_AND_OPEN_ARTIFACT;
                 } else {
                     return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
                 }
             case TaggingState::ARTIFACT:
-                if($inSameParent || $isArtifact) {
+                if ($inSameParent || $isArtifact) {
                     return TaggingDecision::CONTINUE;
                 }
                 return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
@@ -85,7 +83,7 @@ class TextTagging
 
         return TaggingDecision::CONTINUE;
     }
-    
+
     /**
      * PHASE 2: Execute text rendering with tagging
      * 
@@ -108,26 +106,26 @@ class TextTagging
             case TaggingDecision::CONTINUE:
                 $textCallback();
                 break;
-            
+
             // Close first
             case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG:
             case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
             case TaggingDecision::CLOSE:
                 $stateManager->setState(TaggingState::NONE);
                 $addContentCallback(TagOps::endMarkedContent());
-            
-            // Open Semantic parent
+
+                // Open Semantic parent
             case TaggingDecision::OPEN_SEMANTIC_WITH_PARENT_TAG:
             case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG:
                 $stateManager->setState(TaggingState::SEMANTIC);
-                
+
                 $mcid = $stateManager->getNextMcid();
                 $pdfTag = $stateManager->getCurrentSemanticNode()->getStructuralParentPdfStructureTag();
-                
+
                 $addContentCallback(TagOps::startMarkedContent($pdfTag, $mcid));
                 $textCallback();
                 break;
-            
+
             // Open Artifact
             case TaggingDecision::OPEN_ARTIFACT:
             case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
@@ -136,9 +134,8 @@ class TextTagging
                 $addContentCallback(TagOps::startArtifactContent());
                 $textCallback();
                 break;
-
         }
-        
+
         return $output;
     }
 }
