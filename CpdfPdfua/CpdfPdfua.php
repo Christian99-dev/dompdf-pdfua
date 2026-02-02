@@ -45,7 +45,7 @@ class CpdfPdfua extends Cpdf
      */
     public function setCurrentDomNode($node): void
     {
-        print "[CPDF PDFUA] setCurrentDomNode: " . $node->textContent . "\n";
+        if(!$this->pdfua) return;
         $this->taggingStateManager->setCurrentSemanticNode(new SemanticNode($node));
     }
 
@@ -58,7 +58,7 @@ class CpdfPdfua extends Cpdf
     }
 
     // ========================
-    // Text Operations
+    // Cpdf Operations
     // ========================
 
     function addText($x, $y, $size, $text, $angle = 0, $wordSpaceAdjust = 0, $charSpaceAdjust = 0, $smallCaps = false)
@@ -76,6 +76,18 @@ class CpdfPdfua extends Cpdf
                 return parent::addContent($content);  //
             }
         );
-        if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n";
+
+        if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
+    }
+
+    function output($debug = false)
+    {
+        if (!$this->pdfua) return parent::output($debug);
+
+        if ($this->taggingStateManager->getState() !== TaggingState::NONE) {
+            parent::addContent(TagOps::endMarkedContent());
+        }
+
+        return parent::output($debug);
     }
 }
