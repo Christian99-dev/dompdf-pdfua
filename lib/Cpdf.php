@@ -392,6 +392,16 @@ class Cpdf
     protected $markInfoId = 0;
 
     /**
+     * @var integer The objectId of the parent tree for PDF/UA
+     */
+    protected $parentTreeId = 0;
+
+    /**
+     * @var array The parent tree data structure [pageIndex => [structElemId, ...]]
+     */
+    protected $parentTreeData = [];
+
+    /**
      * @var array The list of the core fonts
      */
     protected static $coreFonts = [
@@ -843,6 +853,65 @@ class Cpdf
         }
 
         return null;
+    }
+
+    /**
+     * Parent tree object for PDF/UA structure tree
+     * Maps page structure parent indices to structure elements
+     * 
+     * @param integer $id Object ID
+     * @param string $action Action to perform
+     * @param mixed $options Additional options
+     * @return string|null
+     */
+    protected function o_parentTree($id, $action, $options = '')
+    {
+        switch ($action) {
+            case 'new':
+                $this->objects[$id] = ['t' => 'parentTree', 'info' => []];
+                $this->parentTreeId = $id;
+                break;
+
+            case 'out':
+                $res = "\n$id 0 obj\n<< ";
+                
+                // Build the Nums array from parentTreeData
+                if (!empty($this->parentTreeData)) {
+                    $res .= "/Nums [";
+                    
+                    foreach ($this->parentTreeData as $pageIndex => $structElemIds) {
+                        if (!empty($structElemIds)) {
+                            $res .= "\n$pageIndex [";
+                            foreach ($structElemIds as $structElemId) {
+                                $res .= "$structElemId 0 R ";
+                            }
+                            $res .= "]";
+                        }
+                    }
+                    
+                    $res .= "\n]";
+                }
+                
+                $res .= " >>\nendobj";
+
+                return $res;
+        }
+
+        return null;
+    }
+
+    /**
+     * Add a structure element to the parent tree for a specific page
+     * 
+     * @param integer $pageIndex The page index (StructParents value)
+     * @param integer $structElemId The structure element object ID
+     */
+    protected function addToParentTree($pageIndex, $structElemId)
+    {
+        if (!isset($this->parentTreeData[$pageIndex])) {
+            $this->parentTreeData[$pageIndex] = [];
+        }
+        $this->parentTreeData[$pageIndex][] = $structElemId;
     }
 
     /**
@@ -3248,11 +3317,20 @@ EOT;
     {
         $this->pdfua = true;
         
+        // Create parent tree (must be created before StructTreeRoot references it)
+        if ($this->parentTreeId === 0) {
+            $this->numObj++;
+            $this->o_parentTree($this->numObj, 'new');
+        }
+        
         // Create structure tree root and ref in catalog
         if ($this->structTreeRootId === 0) {
             $this->numObj++;
             $this->o_structTreeRoot($this->numObj, 'new');
             $this->o_catalog($this->catalogId, 'structTreeRoot', $this->numObj);
+            
+            // Link ParentTree to StructTreeRoot
+            $this->o_structTreeRoot($this->structTreeRootId, 'parentTree', $this->parentTreeId);
         }
 
         // Create mark info dictionary and ref in catalog
