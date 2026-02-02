@@ -43,7 +43,8 @@ class SemanticNode
             'ol' => 'L',      'li' => 'LI',       'img' => 'Figure',
             'figure' => 'Figure',  'a' => 'Link',  'blockquote' => 'BlockQuote',
             'code' => 'Code', 'pre' => 'Code',    'strong' => 'Strong',
-            'em' => 'Em',     'b' => 'Strong',    'i' => 'Em'
+            'em' => 'Em',     'b' => 'Strong',    'i' => 'Em', 
+            "body" => "P", 
         ];
         
         return $mapping[$this->domNode->nodeName] ?? null;
