@@ -10,7 +10,6 @@ class TaggingStateManager
     private int $mcidCounter = 0;
     private ?SemanticNode $currentSemanticNode = null;
     private ?SemanticNode $previousSemanticNode = null;
-
     public function getState(): TaggingState
     {
         return $this->state;
@@ -18,7 +17,7 @@ class TaggingStateManager
 
     public function setState(TaggingState $state): void
     {
-        print "[TaggingStateManager] State changed from {$this->state->name} to {$state->name}\n";
+        print "[TaggingStateManager] [TaggingState] changed from {$this->state->name} to {$state->name}\n";
         $this->state = $state;
     }
 
@@ -34,7 +33,30 @@ class TaggingStateManager
 
     public function setCurrentSemanticNode(SemanticNode $node): void
     {
+        // Filter
+        if($node->isEmptyTextNode()) {
+            // print "[TaggingStateManager] setCurrentSemanticNode() Ignoring empty text node\n";
+            return;
+        }
+
+        if($node->isBodyTag()) {
+            // print "[TaggingStateManager] setCurrentSemanticNode() Ignoring body tag\n";
+            return;
+        }
+        
+        if($node->isLineBreakTag()) {
+            // print "[TaggingStateManager] setCurrentSemanticNode() Ignoring line break tag\n";
+            return;
+        }
+
+        // Set prev only if current is not null (happens on first set)
+        if($this->currentSemanticNode !== null) {
+            $this->previousSemanticNode = $this->currentSemanticNode;
+        }
+
         $this->currentSemanticNode = $node;
+
+        print "[TaggingStateManager] setCurrentSemanticNode() to '" . $node->getDomNode()->textContent . "' (". $node->getDomNode()->nodeName .") (" . $node->getPdfStructureTag() . ")\n";
     }
 
     public function getCurrentSemanticNode(): ?SemanticNode
@@ -42,8 +64,9 @@ class TaggingStateManager
         return $this->currentSemanticNode;
     }
 
-    public function isSameSemanticNode(SemanticNode $node): bool
+    public function getPreviousSemanticNode(): ?SemanticNode
     {
-        return $this->currentSemanticNode->getDomNode() === $node->getDomNode();
+        return $this->previousSemanticNode;
     }
+
 }
