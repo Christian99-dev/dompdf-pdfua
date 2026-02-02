@@ -59,12 +59,92 @@ class CpdfPdfua extends Cpdf
             $pageId = $this->currentPage;
             $documentRootKey = $this->structElemRegistry->registerDocumentRoot();
 
-            $this->structElemRegistry->registerStructElem($tag, $mcid, $pageId, $documentRootKey);
+            // Build ancestor chain from document root down to current element (including current)
+            $currentNode = $this->taggingStateManager->getCurrentSemanticNode();
+            $ancestorChain = $this->buildAncestorChain($currentNode);
+            
+            // Register all ancestors as containers (except the last one which will be the leaf)
+            $parentKey = $documentRootKey;
+            $chainLength = count($ancestorChain);
+            
+            for ($i = 0; $i < $chainLength; $i++) {
+                $ancestorNode = $ancestorChain[$i];
+                $ancestorTag = $ancestorNode->getPdfStructureTag();
+                if ($ancestorTag === null) continue;
+                
+                $isLeaf = ($i === $chainLength - 1);
+                
+                if ($isLeaf) {
+                    // Last element in chain - register with MCID
+                    $this->structElemRegistry->registerStructElem($ancestorTag, $mcid, $pageId, $parentKey);
+                } else {
+                    // Container element - get or create
+                    $parentKey = $this->getOrCreateContainerElement($ancestorTag, $ancestorNode, $parentKey);
+                }
+            }
 
             if ($this->debugEnabled) {
                 print "[CPDF PDFUA] Registered StructElem: tag=$tag, mcid=$mcid, pageId=$pageId\n";
             }
         };
+    }
+    
+    /**
+     * Build ancestor chain from document root to parent of current text node
+     * Returns array of SemanticNodes from root down (excluding body/html)
+     */
+    private function buildAncestorChain(?SemanticNode $textNode): array
+    {
+        if ($textNode === null) return [];
+        
+        // Start with the structural parent of the text node (e.g., <p>)
+        $current = $textNode->getNextStructuralParentNode();
+        if ($current === null) return [];
+        
+        $chain = [$current]; // Start with the direct parent (leaf element)
+        
+        // Walk up to collect all ancestors
+        $parent = $current->getNextStructuralParentNode();
+        while ($parent !== null && !$parent->isBodyTag() && !$parent->isHtmlTag()) {
+            array_unshift($chain, $parent); // Add to beginning (root first)
+            $parent = $parent->getNextStructuralParentNode();
+        }
+        
+        return $chain;
+    }
+    
+    /**
+     * Get or create a container element (without MCID)
+     * Returns the key of the container element
+     */
+    private function getOrCreateContainerElement(string $tag, SemanticNode $node, string $parentKey): string
+    {
+        // Generate a unique key based on DOM node identity
+        $domNode = $node->getDomNode();
+        $nodeId = spl_object_id($domNode);
+        $containerKey = strtolower($tag) . '_container_' . $nodeId;
+        
+        // Check if already registered
+        if ($this->structElemRegistry->hasStructElem($containerKey)) {
+            return $containerKey;
+        }
+        
+        // Register new container (no MCID, no page)
+        $this->structElemRegistry->registerStructElem(
+            $tag,
+            null,  // No MCID for containers
+            null,  // No page for containers
+            $parentKey
+        );
+        
+        // Store under the container key
+        $structElems = $this->structElemRegistry->getStructElems();
+        $lastKey = array_key_last($structElems);
+        
+        // Rename the key to our container key
+        $this->structElemRegistry->renameKey($lastKey, $containerKey);
+        
+        return $containerKey;
     }
 
     /**

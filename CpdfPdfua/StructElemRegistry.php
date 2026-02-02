@@ -58,12 +58,12 @@ class StructElemRegistry
      * Register a structure element
      * 
      * @param string $tagType PDF structure tag (P, H1, Span, etc.)
-     * @param int $mcid Marked Content ID
-     * @param int $pageIndex Page index (StructParents value)
+     * @param int|null $mcid Marked Content ID (null for container elements)
+     * @param int|null $pageIndex Page object ID (null for container elements)
      * @param string|null $parentKey Key of parent element (null = document root)
      * @return string The unique key for this element
      */
-    public function registerStructElem(string $tagType, int $mcid, int $pageIndex, ?string $parentKey = null): string
+    public function registerStructElem(string $tagType, ?int $mcid, ?int $pageIndex, ?string $parentKey = null): string
     {
         // Ensure document root exists
         if ($this->documentRootKey === null) {
@@ -191,6 +191,35 @@ class StructElemRegistry
     public function hasStructElem(string $key): bool
     {
         return isset($this->structElems[$key]);
+    }
+
+    /**
+     * Rename a structure element key
+     * Used for container elements with stable IDs
+     * 
+     * @param string $oldKey Current key
+     * @param string $newKey New key
+     */
+    public function renameKey(string $oldKey, string $newKey): void
+    {
+        if (!isset($this->structElems[$oldKey])) {
+            return;
+        }
+        
+        // Copy to new key
+        $this->structElems[$newKey] = $this->structElems[$oldKey];
+        
+        // Update parent's children references
+        $parentKey = $this->structElems[$newKey]['parent'];
+        if ($parentKey && isset($this->structElems[$parentKey])) {
+            $childIndex = array_search($oldKey, $this->structElems[$parentKey]['children']);
+            if ($childIndex !== false) {
+                $this->structElems[$parentKey]['children'][$childIndex] = $newKey;
+            }
+        }
+        
+        // Remove old key
+        unset($this->structElems[$oldKey]);
     }
 
     /**
