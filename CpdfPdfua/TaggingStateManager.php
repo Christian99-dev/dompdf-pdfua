@@ -34,18 +34,7 @@ class TaggingStateManager
     public function setCurrentSemanticNode(SemanticNode $node): void
     {
         // Filter
-        if($node->isEmptyTextNode()) {
-            // print "[TaggingStateManager] setCurrentSemanticNode() Ignoring empty text node\n";
-            return;
-        }
-
-        if($node->isBodyTag()) {
-            // print "[TaggingStateManager] setCurrentSemanticNode() Ignoring body tag\n";
-            return;
-        }
-        
-        if($node->isLineBreakTag()) {
-            // print "[TaggingStateManager] setCurrentSemanticNode() Ignoring line break tag\n";
+        if(!$node->isTextNode()) {
             return;
         }
 
@@ -55,8 +44,6 @@ class TaggingStateManager
         }
 
         $this->currentSemanticNode = $node;
-
-        print "[TaggingStateManager] setCurrentSemanticNode() to '" . $node->getDomNode()->textContent . "' (". $node->getDomNode()->nodeName .") (" . $node->getPdfStructureTag() . ")\n";
     }
 
     public function getCurrentSemanticNode(): ?SemanticNode

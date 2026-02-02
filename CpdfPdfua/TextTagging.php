@@ -44,11 +44,14 @@ class TextTagging
     ): TaggingDecision {
 
         $currentSemanticNode = $stateManager->getCurrentSemanticNode();
+        $previousSemanticNode = $stateManager->getPreviousSemanticNode();
 
         $isArtifact = $currentSemanticNode->isArtifactNode();
-        $inSameParent = $currentSemanticNode->hasSameStructuralParentAs(
-            $stateManager->getPreviousSemanticNode()
-        );
+        
+        // Check if we have a previous node before comparing
+        $inSameParent = ($previousSemanticNode !== null) 
+            ? $currentSemanticNode->hasSameStructuralParentAs($previousSemanticNode)
+            : false;
 
         // print "[TextTagging] analyze(): \n\tisTextNode=" . ($isTextNode ? 'true' : 'false') . ",\n\tpdfTag=" . ($pdfTag ?? 'null') . ", \n\tisArtifact=" . ($isArtifact ? 'true' : 'false') . ", \n\tinSameParent=" . ($inSameParent ? 'true' : 'false') . "\n";
 
