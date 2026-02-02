@@ -22,7 +22,7 @@ class TextTagging
         // PHASE 1: Analyze - What should we do?
         $decision = $this->analyze($stateManager);
 
-        print "[TextTagging] Decision: {$decision->name}\n";
+        print "[TextTagging] [TaggingDecision] {$decision->name}\n";
         
         // PHASE 2: Execute - Do it!
         return $this->execute($decision, $stateManager, $textCallback, $addContentCallback);
@@ -46,9 +46,11 @@ class TextTagging
         $isTextNode = $currentSemanticNode->isTextNode();
         $pdfTag = $currentSemanticNode->getPdfStructureTag();
         $isArtifact = $currentSemanticNode->isArtifactNode();
-        $isSameSemanticNode = $stateManager->isSameSemanticNode($currentSemanticNode);
+        $inSameParent = $currentSemanticNode->hasSameStructuralParentAs(
+            $stateManager->getPreviousSemanticNode()
+        );
 
-        print "[TextTagging] analyze(): isTextNode=" . ($isTextNode ? 'true' : 'false') . ", pdfTag=" . ($pdfTag ?? 'null') . ", isArtifact=" . ($isArtifact ? 'true' : 'false') . ", isSameSemanticNode=" . ($isSameSemanticNode ? 'true' : 'false') . "\n";
+        // print "[TextTagging] analyze(): \n\tisTextNode=" . ($isTextNode ? 'true' : 'false') . ",\n\tpdfTag=" . ($pdfTag ?? 'null') . ", \n\tisArtifact=" . ($isArtifact ? 'true' : 'false') . ", \n\tinSameParent=" . ($inSameParent ? 'true' : 'false') . "\n";
         
         if(!$isTextNode) {
             // no text node, or no pdf tag associated
@@ -61,11 +63,11 @@ class TextTagging
                 if ($isArtifact) {
                     return TaggingDecision::OPEN_ARTIFACT;
                 } else {
-                    return TaggingDecision::OPEN_SEMANTIC;
+                    return TaggingDecision::OPEN_SEMANTIC_WITH_PARENT_TAG;
                 }
             case TaggingState::SEMANTIC:
 
-                if($isSameSemanticNode) {
+                if($inSameParent) {
                     return TaggingDecision::CONTINUE;
                 }
 
@@ -75,7 +77,7 @@ class TextTagging
                     return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
                 }
             case TaggingState::ARTIFACT:
-                if($isSameSemanticNode || $isArtifact) {
+                if($inSameParent || $isArtifact) {
                     return TaggingDecision::CONTINUE;
                 }
                 return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
@@ -99,32 +101,40 @@ class TextTagging
         callable $addContentCallback
     ): string {
         $output = '';
+        $pdfTag = null;
+        $mcid = null;
 
         switch ($decision) {
-            case TaggingDecision::OPEN_SEMANTIC_WITH_PARENT_TAG:
-                $stateManager->setState(TaggingState::SEMANTIC);
-                break;
-            case TaggingDecision::OPEN_SEMANTIC:
-                $stateManager->setState(TaggingState::SEMANTIC);
-                break;
-            case TaggingDecision::OPEN_ARTIFACT:
-                $stateManager->setState(TaggingState::ARTIFACT);
+            case TaggingDecision::CONTINUE:
+                $textCallback();
                 break;
             
-            case TaggingDecision::CONTINUE:
-                break;
-
+            // Close first
+            case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG:
+            case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
             case TaggingDecision::CLOSE:
                 $stateManager->setState(TaggingState::NONE);
-                break;
-            case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC:
-                $stateManager->setState(TaggingState::NONE);
-                break;
-            case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
-                $stateManager->setState(TaggingState::NONE);
-                break;
+                $addContentCallback(TagOps::endMarkedContent());
+            
+            // Open Semantic parent
+            case TaggingDecision::OPEN_SEMANTIC_WITH_PARENT_TAG:
             case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG:
                 $stateManager->setState(TaggingState::SEMANTIC);
+                
+                $mcid = $stateManager->getNextMcid();
+                $pdfTag = $stateManager->getCurrentSemanticNode()->getStructuralParentPdfStructureTag();
+                
+                $addContentCallback(TagOps::startMarkedContent($pdfTag, $mcid));
+                $textCallback();
+                break;
+            
+            // Open Artifact
+            case TaggingDecision::OPEN_ARTIFACT:
+            case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
+                $stateManager->setState(TaggingState::ARTIFACT);
+
+                $addContentCallback(TagOps::startArtifactContent());
+                $textCallback();
                 break;
 
         }
