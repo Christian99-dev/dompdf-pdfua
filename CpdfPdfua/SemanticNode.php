@@ -145,6 +145,17 @@ class SemanticNode
         return in_array($this->domNode->nodeName, $transparentTags, true);
     }
 
+    public function isBeforeLineBreakNode(): bool
+    {
+        // only check the previous siblings for <br>    
+        $sibling = $this->domNode->nextSibling;
+        
+        if($sibling instanceof \DOMElement && $sibling->nodeName === 'br') {
+            return true;
+        }
+        return false;
+    }
+
     /**
     * String representation
     */

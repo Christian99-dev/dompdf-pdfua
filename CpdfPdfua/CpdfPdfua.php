@@ -257,6 +257,14 @@ class CpdfPdfua extends Cpdf
     {
         if (!$this->pdfua) return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
 
+        // Add whitespace if <br> is next node to prevent word concatenation in structure tree
+        // this is bearly visible in the PDF, but important for screen readers
+        $currentSemanticNode = $this->taggingStateManager->getCurrentSemanticNode();
+        if($currentSemanticNode !== null &&
+           $currentSemanticNode->isBeforeLineBreakNode()
+        ) {
+            $text .= ' ';
+        }
 
         // hier soll jetzt der textProcessor das machen
         $this->textTagging->process(
