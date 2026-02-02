@@ -60,13 +60,29 @@ class SemanticNode
 
     public function getNextStructuralParentNode(): ?SemanticNode
     {
-        // TODO : Traverse up the DOM tree to find the next structural parent node
-        // for now just get the parent node
+        // Traverse up the DOM tree to find the next structural parent node
+        // Skip inline tags like <strong>, <em>, <span>, etc.
 
         $parentNode = $this->domNode->parentNode;
-        if ($parentNode instanceof \DOMElement) {
-            return new SemanticNode($parentNode);
+        $saveCounter = 99;
+        
+        while ($parentNode instanceof \DOMElement) {
+            $saveCounter--;
+            if($saveCounter <= 0) {
+                break;
+            };
+
+            $semanticParent = new SemanticNode($parentNode);
+            
+            // Stop when we find a non-inline (structural) tag
+            if (!$semanticParent->isInlineTag()) {
+                return $semanticParent;
+            }
+            
+            // Continue up the tree
+            $parentNode = $parentNode->parentNode;
         }
+        
         return null;
     }
     
@@ -114,6 +130,18 @@ class SemanticNode
             }
         }
         return false;
+    }
+
+    public function isInlineTag(): bool
+    {
+        $transparentTags = [
+            'strong',  'b',      'em',     'i',      'span',   'u',
+            's',       'del',    'ins',    'mark',   'small',  'sub',
+            'sup',     'code',   'kbd',    'samp',   'var',    'cite',
+            'dfn',     'abbr',   'time',
+        ];
+        
+        return in_array($this->domNode->nodeName, $transparentTags, true);
     }
 
     /**
