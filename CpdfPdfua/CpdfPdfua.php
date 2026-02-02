@@ -38,12 +38,6 @@ class CpdfPdfua extends Cpdf
 
         $this->textTagging = new TextTagging();
         $this->taggingStateManager = new TaggingStateManager();
-
-        if ($this->structTreeRootId === 0) {
-            $this->numObj++;
-            $this->o_structTreeRoot($this->numObj, 'new');
-            $this->o_catalog($this->catalogId, 'structTreeRoot', $this->numObj);
-        }
     }
 
     /**

@@ -3209,6 +3209,13 @@ EOT;
     public function enablePdfUACompliance()
     {
         $this->pdfua = true;
+        
+        // Create structure tree root and ref in catalog
+        if ($this->structTreeRootId === 0) {
+            $this->numObj++;
+            $this->o_structTreeRoot($this->numObj, 'new');
+            $this->o_catalog($this->catalogId, 'structTreeRoot', $this->numObj);
+        }
     }
 
     public function setAdditionalXmpRdf(string $xmlRDFContents): void
