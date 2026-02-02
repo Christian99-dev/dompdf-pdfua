@@ -55,6 +55,16 @@ class CpdfPdfua extends Cpdf
             if ($this->debugEnabled) {
                 print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
             }
+            
+            $pageId = $this->currentPage;
+            $documentRootKey = $this->structElemRegistry->registerDocumentRoot();
+            
+            $this->structElemRegistry->registerStructElem($tag, $mcid, $pageId, $documentRootKey);
+            
+            if ($this->debugEnabled) {
+                print "[CPDF PDFUA] Registered StructElem: tag=$tag, mcid=$mcid, pageId=$pageId\n";
+            }
+            
         };
     }
 

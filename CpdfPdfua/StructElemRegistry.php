@@ -30,8 +30,7 @@ class StructElemRegistry
     private $keyCounter = 0;
 
     /**
-     * Register the document root element
-     * Should be called once at the beginning
+     * Register the document root element or return existing one
      * 
      * @return string The key of the document root
      */
