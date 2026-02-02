@@ -249,6 +249,35 @@ class CpdfPdfua extends Cpdf
         $this->debugEnabled = $enabled;
     }
 
+    /**
+     * Wrap a visual operation in an artifact tag
+     * This closes any open semantic/artifact tag, wraps the operation in artifact, then restores state
+     */
+    private function wrapInArtifact(callable $operation)
+    {
+        if (!$this->pdfua) {
+            $operation();
+            return;
+        }
+
+        $taggingState = $this->taggingStateManager->getState();
+
+        switch ($taggingState) {
+            case TaggingState::SEMANTIC:
+                parent::addContent(TagOps::endMarkedContent());
+                // fall through
+            case TaggingState::NONE:
+                parent::addContent(TagOps::startArtifactContent());
+                // fall through
+            case TaggingState::ARTIFACT:
+                $operation();
+                break;
+                
+        }
+
+        $this->taggingStateManager->setState(TaggingState::ARTIFACT);
+    }
+
     // ========================
     // Cpdf Operations
     // ========================
@@ -279,6 +308,55 @@ class CpdfPdfua extends Cpdf
         );
 
         if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
+    }
+
+    function filledRectangle($x1, $y1, $width, $height)
+    {
+        $this->wrapInArtifact(function() use ($x1, $y1, $width, $height) {
+            parent::filledRectangle($x1, $y1, $width, $height);
+        });
+    }
+
+    function rectangle($x1, $y1, $width, $height)
+    {
+        $this->wrapInArtifact(function() use ($x1, $y1, $width, $height) {
+            parent::rectangle($x1, $y1, $width, $height);
+        });
+    }
+
+    function line($x1, $y1, $x2, $y2, $stroke = true)
+    {
+        $this->wrapInArtifact(function() use ($x1, $y1, $x2, $y2, $stroke) {
+            parent::line($x1, $y1, $x2, $y2, $stroke);
+        });
+    }
+
+    function clippingRectangle($x1, $y1, $width, $height)
+    {
+        $this->wrapInArtifact(function() use ($x1, $y1, $width, $height) {
+            parent::clippingRectangle($x1, $y1, $width, $height);
+        });
+    }
+
+    function clippingEnd()
+    {
+        $this->wrapInArtifact(function() {
+            parent::clippingEnd();
+        });
+    }
+
+    public function setLineTransparency(string $mode, float $opacity): void
+    {
+        $this->wrapInArtifact(function () use ($mode, $opacity) {
+            parent::setLineTransparency($mode, $opacity);
+        });
+    }
+
+    public function setFillTransparency(string $mode, float $opacity): void
+    {
+        $this->wrapInArtifact(function () use ($mode, $opacity) {
+            parent::setFillTransparency($mode, $opacity);
+        });
     }
 
     function newPage($insert = 0, $id = 0, $pos = 'after')
