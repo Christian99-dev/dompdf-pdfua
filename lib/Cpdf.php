@@ -3974,7 +3974,7 @@ EOT;
      *
      * @param $content
      */
-    private function addContent($content)
+    protected function addContent($content)
     {
         $this->objects[$this->currentContents]['c'] .= $content;
     }

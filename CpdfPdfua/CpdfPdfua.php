@@ -20,9 +20,14 @@ class CpdfPdfua extends Cpdf
     private $debugEnabled = false;
 
     /**
-     * @var SemanticNode Current SemanticNode being processed
+     * @var TaggingStateManager Tagging state manager
      */
-    private $currentSemanticNode;
+    private $taggingStateManager;
+
+    /**
+     * @var TextTagging Text tagging processor
+     */
+    private $textTagging;
 
     /**
      * Constructor
@@ -30,18 +35,18 @@ class CpdfPdfua extends Cpdf
     public function __construct($pageSize = [0, 0, 612, 792], $isUnicode = false, $fontcache = '', $tmp = '')
     {
         parent::__construct($pageSize, $isUnicode, $fontcache, $tmp);
+        $this->textTagging = new TextTagging();
+        $this->taggingStateManager = new TaggingStateManager();
     }
 
     /**
-    * Sets the current SemanticNode being processed
-    * @param \DOMNode $node
-    */
+     * Sets the current SemanticNode being processed
+     * @param \DOMNode $node
+     */
     public function setCurrentDomNode($node): void
     {
-        $this->currentSemanticNode = new SemanticNode($node);
-        if ($this->debugEnabled) {
-            print "[CPDF PDFUA] setCurrentSemanticNode({$this->currentSemanticNode})\n";
-        }
+        print "[CPDF PDFUA] setCurrentDomNode: " . $node->textContent . "\n";
+        $this->taggingStateManager->setCurrentSemanticNode(new SemanticNode($node));
     }
 
     /**
@@ -58,9 +63,19 @@ class CpdfPdfua extends Cpdf
 
     function addText($x, $y, $size, $text, $angle = 0, $wordSpaceAdjust = 0, $charSpaceAdjust = 0, $smallCaps = false)
     {
-        if(!$this->pdfua) return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
-        
+        if (!$this->pdfua) return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
+
+
+        // hier soll jetzt der textProcessor das machen
+        $this->textTagging->process(
+            $this->taggingStateManager,
+            function () use ($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps) {
+                return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
+            },
+            function ($content) {
+                return parent::addContent($content);  //
+            }
+        );
         if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n";
-        return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
     }
 }

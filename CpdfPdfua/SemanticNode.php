@@ -49,7 +49,35 @@ class SemanticNode
         return $mapping[$this->domNode->nodeName] ?? null;
     }
 
-    /*
+    public function getParentPdfStructureTag(): string | null
+    {
+        $parentNode = $this->domNode->parentNode;
+        if ($parentNode instanceof \DOMElement) {
+            $parentSemanticNode = new SemanticNode($parentNode);
+            return $parentSemanticNode->getPdfStructureTag();
+        }
+        return null;
+    }
+
+    public function isTextNode(): bool
+    {
+        return $this->domNode->nodeName === '#text';
+    }
+
+    public function isArtifactNode(): bool
+    {
+        // get aria-hidden attribute
+        if ($this->domNode instanceof \DOMElement) {
+            $ariaHidden = $this->domNode->getAttribute('aria-hidden');
+            
+            if ($ariaHidden === '') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
     * String representation
     */
     public function __toString()
