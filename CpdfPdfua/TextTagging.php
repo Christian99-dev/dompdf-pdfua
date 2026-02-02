@@ -79,9 +79,12 @@ class TextTagging
                     return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
                 }
             case TaggingState::ARTIFACT:
-                if ($inSameParent || $isArtifact) {
+
+                if($isArtifact) {
                     return TaggingDecision::CONTINUE;
                 }
+                // same parent or not, we need to close artifact and open semantic
+                // this happens when styles change within notes
                 return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
         }
 
