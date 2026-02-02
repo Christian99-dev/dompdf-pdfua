@@ -148,6 +148,78 @@ class CpdfPdfua extends Cpdf
     }
 
     /**
+     * Finalize the structure tree by creating all StructElem objects
+     * This is called before output() to generate the actual PDF objects
+     */
+    private function finalizeStructureTree()
+    {
+        $structElems = $this->structElemRegistry->getStructElems();
+
+        // First pass: Create all StructElem objects and assign object IDs
+        foreach ($structElems as $key => $elemData) {
+            $this->numObj++;
+            $objectId = $this->numObj;
+
+            // Store the object ID in the registry
+            $this->structElemRegistry->setObjectId($key, $objectId);
+
+            // Create the StructElem object
+            $this->o_structElem($objectId, 'new');
+            $this->o_structElem($objectId, 'structType', $elemData['type']);
+        }
+
+        // Second pass: Set up parent-child relationships
+        foreach ($structElems as $key => $elemData) {
+            $objectId = $this->structElemRegistry->getObjectId($key);
+
+            if ($elemData['parent'] === null) {
+                // This is the document root - parent is StructTreeRoot
+                $this->o_structElem($objectId, 'parent', $this->structTreeRootId);
+
+                // Link StructTreeRoot to this document root
+                $this->o_structTreeRoot($this->structTreeRootId, 'kids', $objectId);
+            } else {
+                // Regular element - parent is another StructElem
+                $parentObjectId = $this->structElemRegistry->getObjectId($elemData['parent']);
+                $this->o_structElem($objectId, 'parent', $parentObjectId);
+            }
+
+            // Set kids (children or MCID)
+            if (!empty($elemData['children'])) {
+                $kidRefs = [];
+                foreach ($elemData['children'] as $childKey) {
+                    $childObjectId = $this->structElemRegistry->getObjectId($childKey);
+                    if ($childObjectId) {
+                        $kidRefs[] = ['ref' => $childObjectId]; // Mark as object reference
+                    }
+                }
+                if (!empty($kidRefs)) {
+                    $this->o_structElem($objectId, 'kids', $kidRefs);
+                }
+            } elseif ($elemData['mcid'] !== null) {
+                // Leaf element with MCID - pass as single value, not array
+                $this->o_structElem($objectId, 'kids', $elemData['mcid']);
+
+                // Set page reference
+                if ($elemData['page'] !== null) {
+                    $this->o_structElem($objectId, 'page', $elemData['page']);
+                }
+
+                // Add to ParentTree
+                $pageIndex = $elemData['page'];
+                if ($pageIndex !== null) {
+                    // Get StructParents index for this page
+                    $pageObj = $this->objects[$elemData['page']];
+                    if (isset($pageObj['info']['structParents'])) {
+                        $structParentsIndex = $pageObj['info']['structParents'];
+                        $this->addToParentTree($structParentsIndex, $objectId);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Override: Enable PDF/UA compliance and initialize structure tree
      */
     public function enablePdfUACompliance()
@@ -232,75 +304,4 @@ class CpdfPdfua extends Cpdf
         return parent::output($debug);
     }
 
-    /**
-     * Finalize the structure tree by creating all StructElem objects
-     * This is called before output() to generate the actual PDF objects
-     */
-    private function finalizeStructureTree()
-    {
-        $structElems = $this->structElemRegistry->getStructElems();
-
-        // First pass: Create all StructElem objects and assign object IDs
-        foreach ($structElems as $key => $elemData) {
-            $this->numObj++;
-            $objectId = $this->numObj;
-
-            // Store the object ID in the registry
-            $this->structElemRegistry->setObjectId($key, $objectId);
-
-            // Create the StructElem object
-            $this->o_structElem($objectId, 'new');
-            $this->o_structElem($objectId, 'structType', $elemData['type']);
-        }
-
-        // Second pass: Set up parent-child relationships
-        foreach ($structElems as $key => $elemData) {
-            $objectId = $this->structElemRegistry->getObjectId($key);
-
-            if ($elemData['parent'] === null) {
-                // This is the document root - parent is StructTreeRoot
-                $this->o_structElem($objectId, 'parent', $this->structTreeRootId);
-
-                // Link StructTreeRoot to this document root
-                $this->o_structTreeRoot($this->structTreeRootId, 'kids', $objectId);
-            } else {
-                // Regular element - parent is another StructElem
-                $parentObjectId = $this->structElemRegistry->getObjectId($elemData['parent']);
-                $this->o_structElem($objectId, 'parent', $parentObjectId);
-            }
-
-            // Set kids (children or MCID)
-            if (!empty($elemData['children'])) {
-                $kidRefs = [];
-                foreach ($elemData['children'] as $childKey) {
-                    $childObjectId = $this->structElemRegistry->getObjectId($childKey);
-                    if ($childObjectId) {
-                        $kidRefs[] = ['ref' => $childObjectId]; // Mark as object reference
-                    }
-                }
-                if (!empty($kidRefs)) {
-                    $this->o_structElem($objectId, 'kids', $kidRefs);
-                }
-            } elseif ($elemData['mcid'] !== null) {
-                // Leaf element with MCID - pass as single value, not array
-                $this->o_structElem($objectId, 'kids', $elemData['mcid']);
-
-                // Set page reference
-                if ($elemData['page'] !== null) {
-                    $this->o_structElem($objectId, 'page', $elemData['page']);
-                }
-
-                // Add to ParentTree
-                $pageIndex = $elemData['page'];
-                if ($pageIndex !== null) {
-                    // Get StructParents index for this page
-                    $pageObj = $this->objects[$elemData['page']];
-                    if (isset($pageObj['info']['structParents'])) {
-                        $structParentsIndex = $pageObj['info']['structParents'];
-                        $this->addToParentTree($structParentsIndex, $objectId);
-                    }
-                }
-            }
-        }
-    }
 }
