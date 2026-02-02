@@ -55,16 +55,15 @@ class CpdfPdfua extends Cpdf
             if ($this->debugEnabled) {
                 print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
             }
-            
+
             $pageId = $this->currentPage;
             $documentRootKey = $this->structElemRegistry->registerDocumentRoot();
-            
+
             $this->structElemRegistry->registerStructElem($tag, $mcid, $pageId, $documentRootKey);
-            
+
             if ($this->debugEnabled) {
                 print "[CPDF PDFUA] Registered StructElem: tag=$tag, mcid=$mcid, pageId=$pageId\n";
             }
-            
         };
     }
 
@@ -75,7 +74,7 @@ class CpdfPdfua extends Cpdf
     {
         // Call parent to create StructTreeRoot, ParentTree, MarkInfo
         parent::enablePdfUACompliance();
-        
+
         // Initialize document root in registry
         $this->structElemRegistry->registerDocumentRoot();
     }
@@ -86,7 +85,7 @@ class CpdfPdfua extends Cpdf
      */
     public function setCurrentDomNode($node): void
     {
-        if(!$this->pdfua) return;
+        if (!$this->pdfua) return;
         $this->taggingStateManager->setCurrentSemanticNode(new SemanticNode($node));
     }
 
@@ -122,6 +121,23 @@ class CpdfPdfua extends Cpdf
         if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
     }
 
+    function newPage($insert = 0, $id = 0, $pos = 'after')
+    {
+        if (!$this->pdfua) return parent::newPage($insert, $id, $pos);
+
+        // Close any open marked content before creating new page
+        if ($this->taggingStateManager->getState() !== TaggingState::NONE) {
+            parent::addContent(TagOps::endMarkedContent());
+            $this->taggingStateManager->setState(TaggingState::NONE);
+        }
+
+        // Reset MCID counter for new page
+        $this->taggingStateManager->resetMcidCounter();
+
+        // Create the new page
+        return parent::newPage($insert, $id, $pos);
+    }
+
     function output($debug = false)
     {
         if (!$this->pdfua) return parent::output($debug);
@@ -143,28 +159,28 @@ class CpdfPdfua extends Cpdf
     private function finalizeStructureTree()
     {
         $structElems = $this->structElemRegistry->getStructElems();
-        
+
         // First pass: Create all StructElem objects and assign object IDs
         foreach ($structElems as $key => $elemData) {
             $this->numObj++;
             $objectId = $this->numObj;
-            
+
             // Store the object ID in the registry
             $this->structElemRegistry->setObjectId($key, $objectId);
-            
+
             // Create the StructElem object
             $this->o_structElem($objectId, 'new');
             $this->o_structElem($objectId, 'structType', $elemData['type']);
         }
-        
+
         // Second pass: Set up parent-child relationships
         foreach ($structElems as $key => $elemData) {
             $objectId = $this->structElemRegistry->getObjectId($key);
-            
+
             if ($elemData['parent'] === null) {
                 // This is the document root - parent is StructTreeRoot
                 $this->o_structElem($objectId, 'parent', $this->structTreeRootId);
-                
+
                 // Link StructTreeRoot to this document root
                 $this->o_structTreeRoot($this->structTreeRootId, 'kids', $objectId);
             } else {
@@ -172,7 +188,7 @@ class CpdfPdfua extends Cpdf
                 $parentObjectId = $this->structElemRegistry->getObjectId($elemData['parent']);
                 $this->o_structElem($objectId, 'parent', $parentObjectId);
             }
-            
+
             // Set kids (children or MCID)
             if (!empty($elemData['children'])) {
                 $kidRefs = [];
@@ -188,12 +204,12 @@ class CpdfPdfua extends Cpdf
             } elseif ($elemData['mcid'] !== null) {
                 // Leaf element with MCID - pass as single value, not array
                 $this->o_structElem($objectId, 'kids', $elemData['mcid']);
-                
+
                 // Set page reference
                 if ($elemData['page'] !== null) {
                     $this->o_structElem($objectId, 'page', $elemData['page']);
                 }
-                
+
                 // Add to ParentTree
                 $pageIndex = $elemData['page'];
                 if ($pageIndex !== null) {
