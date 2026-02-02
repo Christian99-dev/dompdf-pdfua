@@ -49,19 +49,58 @@ class SemanticNode
         return $mapping[$this->domNode->nodeName] ?? null;
     }
 
-    public function getParentPdfStructureTag(): string | null
+    public function getStructuralParentPdfStructureTag(): string | null
     {
-        $parentNode = $this->domNode->parentNode;
-        if ($parentNode instanceof \DOMElement) {
-            $parentSemanticNode = new SemanticNode($parentNode);
-            return $parentSemanticNode->getPdfStructureTag();
+        $structuralParentNode = $this->getNextStructuralParentNode();
+        if($structuralParentNode !== null) {
+            return $structuralParentNode->getPdfStructureTag();
         }
         return null;
+    }
+
+    public function getNextStructuralParentNode(): ?SemanticNode
+    {
+        // TODO : Traverse up the DOM tree to find the next structural parent node
+        // for now just get the parent node
+
+        $parentNode = $this->domNode->parentNode;
+        if ($parentNode instanceof \DOMElement) {
+            return new SemanticNode($parentNode);
+        }
+        return null;
+    }
+    
+    public function hasSameStructuralParentAs(SemanticNode $otherNode): bool
+    {
+        $thisParent = $this->getNextStructuralParentNode()->getDomNode();
+        $otherParent = $otherNode->getNextStructuralParentNode()->getDomNode();
+
+        return $thisParent === $otherParent;
     }
 
     public function isTextNode(): bool
     {
         return $this->domNode->nodeName === '#text';
+    }
+
+    public function isEmptyTextNode(): bool
+    {
+        return $this->isTextNode() && trim($this->domNode->textContent) === '';
+    }
+
+    public function isBodyTag(): bool
+    {
+        return $this->domNode->nodeName === 'body';
+    }
+
+    public function isHtmlTag(): bool
+    {
+        return $this->domNode->nodeName === 'html';
+    }
+
+    public function isLineBreakTag(): bool
+    {
+        return $this->domNode->nodeName === 'br';
     }
 
     public function isArtifactNode(): bool
