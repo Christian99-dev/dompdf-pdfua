@@ -30,6 +30,12 @@ class CpdfPdfua extends Cpdf
     private $textTagging;
 
     /**
+     * onMarkedContentAdded callback
+     * @var callable
+     */
+    public $onMarkedContentAdded;
+
+    /**
      * Constructor
      */
     public function __construct($pageSize = [0, 0, 612, 792], $isUnicode = false, $fontcache = '', $tmp = '')
@@ -38,6 +44,12 @@ class CpdfPdfua extends Cpdf
 
         $this->textTagging = new TextTagging();
         $this->taggingStateManager = new TaggingStateManager();
+
+        $this->onMarkedContentAdded = function ($tag, $mcid) {
+            if ($this->debugEnabled) {
+                print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
+            }
+        };
     }
 
     /**
@@ -75,7 +87,8 @@ class CpdfPdfua extends Cpdf
             },
             function ($content) {
                 return parent::addContent($content);  //
-            }
+            },
+            $this->onMarkedContentAdded
         );
 
         if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
