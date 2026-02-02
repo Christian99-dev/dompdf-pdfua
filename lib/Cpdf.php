@@ -861,6 +861,93 @@ class Cpdf
     }
 
     /**
+     * Structure element object for PDF/UA structure tree
+     * Represents individual structure elements (Document, P, H1, etc.)
+     * 
+     * @param integer $id Object ID
+     * @param string $action Action to perform
+     * @param mixed $options Additional options
+     * @return string|null
+     */
+    protected function o_structElem($id, $action, $options = '')
+    {
+        if ($action !== 'new') {
+            $o = &$this->objects[$id];
+        }
+
+        switch ($action) {
+            case 'new':
+                $this->objects[$id] = ['t' => 'structElem', 'info' => []];
+                break;
+
+            case 'structType':
+                // Set the structure type (e.g., /Document, /P, /H1)
+                $o['info']['structType'] = $options;
+                break;
+
+            case 'parent':
+                // Set the parent structure element or StructTreeRoot reference
+                $o['info']['parent'] = $options;
+                break;
+
+            case 'kids':
+                // Set the kids array (either MCIDs or child structure elements)
+                $o['info']['kids'] = $options;
+                break;
+
+            case 'page':
+                // Set the page reference (only for leaf elements with MCIDs)
+                $o['info']['page'] = $options;
+                break;
+
+            case 'out':
+                $res = "\n$id 0 obj\n<< /Type /StructElem";
+
+                if (isset($o['info']['structType'])) {
+                    $res .= "\n/S /" . $o['info']['structType'];
+                }
+
+                if (isset($o['info']['parent'])) {
+                    $res .= "\n/P " . $o['info']['parent'] . " 0 R";
+                }
+
+                if (isset($o['info']['kids'])) {
+                    $kids = $o['info']['kids'];
+                    if (is_array($kids)) {
+                        $res .= "\n/K [";
+                        foreach ($kids as $kid) {
+                            if (is_int($kid)) {
+                                // MCID (just a number)
+                                $res .= "$kid ";
+                            } else {
+                                // Object reference
+                                $res .= "$kid 0 R ";
+                            }
+                        }
+                        $res .= "]";
+                    } else {
+                        // Single kid
+                        if (is_int($kids)) {
+                            $res .= "\n/K $kids";
+                        } else {
+                            $res .= "\n/K $kids 0 R";
+                        }
+                    }
+                }
+
+                if (isset($o['info']['page'])) {
+                    $res .= "\n/Pg " . $o['info']['page'] . " 0 R";
+                }
+
+                $res .= " >>\nendobj";
+
+                return $res;
+        }
+
+        return null;
+    }
+
+    /**
      * Parent tree object for PDF/UA structure tree
      * Maps page structure parent indices to structure elements
      * 
