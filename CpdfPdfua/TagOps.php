@@ -38,7 +38,7 @@ class TagOps
             $properties .= sprintf(' /Alt (%s)', self::escape($props['Alt']));
         }
         
-        return sprintf("/%s <<%s>> BDC\n", $tag, $properties);
+        return sprintf("\n/%s <<%s>> BDC", $tag, $properties);
     }
     
     /**
@@ -48,7 +48,7 @@ class TagOps
      */
     public static function startArtifactContent(): string
     {
-        return "\n/Artifact BMC\n";
+        return "\n/Artifact BMC";
     }
 
     /**
@@ -58,7 +58,7 @@ class TagOps
      */
     public static function endMarkedContent(): string
     {
-        return "\nEMC\n";
+        return "\nEMC";
     }
     
     /**
