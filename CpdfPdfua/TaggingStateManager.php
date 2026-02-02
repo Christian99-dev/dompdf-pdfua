@@ -33,8 +33,22 @@ class TaggingStateManager
 
     public function setCurrentSemanticNode(SemanticNode $node): void
     {
-        // Filter
-        if(!$node->isTextNode()) {
+        // Filter empty text nodes (whitespace)
+        if($node->isEmptyTextNode()) {
+            return;
+        }
+
+        // Filter body and br tags
+        if($node->isBodyTag()) {
+            return;
+        }
+        
+        if($node->isLineBreakTag()) {
+            return;
+        }
+
+        // Only track #text nodes for comparison, ignore element nodes like <p>, <strong>, <span>
+        if (!$node->isTextNode()) {
             return;
         }
 
