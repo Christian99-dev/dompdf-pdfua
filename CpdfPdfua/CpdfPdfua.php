@@ -35,8 +35,15 @@ class CpdfPdfua extends Cpdf
     public function __construct($pageSize = [0, 0, 612, 792], $isUnicode = false, $fontcache = '', $tmp = '')
     {
         parent::__construct($pageSize, $isUnicode, $fontcache, $tmp);
+
         $this->textTagging = new TextTagging();
         $this->taggingStateManager = new TaggingStateManager();
+
+        if ($this->structTreeRootId === 0) {
+            $this->numObj++;
+            $this->o_structTreeRoot($this->numObj, 'new');
+            $this->o_catalog($this->catalogId, 'structTreeRoot', $this->numObj);
+        }
     }
 
     /**

@@ -382,6 +382,11 @@ class Cpdf
     protected $byteRange = array();
 
     /**
+     * @var integer The objectId of the structure tree root for PDF/UA
+     */
+    protected $structTreeRootId = 0;
+
+    /**
      * @var array The list of the core fonts
      */
     protected static $coreFonts = [
@@ -630,6 +635,7 @@ class Cpdf
             case 'pages':
             case 'openHere':
             case 'names':
+            case 'structTreeRoot':
                 $o['info'][$action] = $options;
                 break;
 
@@ -716,6 +722,10 @@ class Cpdf
                             $res .= "\n/AcroForm $v 0 R";
                             break;
 
+                        case 'structTreeRoot':
+                            $res .= "\n/StructTreeRoot $v 0 R";
+                            break;
+
                         case 'metadata':
                             $res .= "\n/Metadata $v 0 R";
                             break;
@@ -738,6 +748,55 @@ class Cpdf
                             $res .= "\n]";
                             break;
                     }
+                }
+
+                $res .= " >>\nendobj";
+
+                return $res;
+        }
+
+        return null;
+    }
+
+    /**
+     * Structure tree root object for PDF/UA
+     * 
+     * @param integer $id Object ID
+     * @param string $action Action to perform
+     * @param mixed $options Additional options
+     * @return string|null
+     */
+    protected function o_structTreeRoot($id, $action, $options = '')
+    {
+        if ($action !== 'new') {
+            $o = &$this->objects[$id];
+        }
+
+        switch ($action) {
+            case 'new':
+                $this->objects[$id] = ['t' => 'structTreeRoot', 'info' => []];
+                $this->structTreeRootId = $id;
+                break;
+
+            case 'kids':
+                // Set the root structure element reference
+                $o['info']['kids'] = $options;
+                break;
+
+            case 'parentTree':
+                // Set the parent tree reference
+                $o['info']['parentTree'] = $options;
+                break;
+
+            case 'out':
+                $res = "\n$id 0 obj\n<< /Type /StructTreeRoot";
+
+                if (isset($o['info']['kids'])) {
+                    $res .= "\n/K [" . $o['info']['kids'] . " 0 R]";
+                }
+
+                if (isset($o['info']['parentTree'])) {
+                    $res .= "\n/ParentTree " . $o['info']['parentTree'] . " 0 R";
                 }
 
                 $res .= " >>\nendobj";
