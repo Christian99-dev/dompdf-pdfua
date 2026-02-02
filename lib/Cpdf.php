@@ -387,6 +387,11 @@ class Cpdf
     protected $structTreeRootId = 0;
 
     /**
+     * @var integer The objectId of the mark info dictionary for PDF/UA
+     */
+    protected $markInfoId = 0;
+
+    /**
      * @var array The list of the core fonts
      */
     protected static $coreFonts = [
@@ -636,6 +641,7 @@ class Cpdf
             case 'openHere':
             case 'names':
             case 'structTreeRoot':
+            case 'markInfo':
                 $o['info'][$action] = $options;
                 break;
 
@@ -726,6 +732,10 @@ class Cpdf
                             $res .= "\n/StructTreeRoot $v 0 R";
                             break;
 
+                        case 'markInfo':
+                            $res .= "\n/MarkInfo $v 0 R";
+                            break;
+
                         case 'metadata':
                             $res .= "\n/Metadata $v 0 R";
                             break;
@@ -799,6 +809,34 @@ class Cpdf
                     $res .= "\n/ParentTree " . $o['info']['parentTree'] . " 0 R";
                 }
 
+                $res .= " >>\nendobj";
+
+                return $res;
+        }
+
+        return null;
+    }
+
+    /**
+     * Mark info dictionary for PDF/UA tagged content
+     * Indicates that the document is tagged
+     * 
+     * @param integer $id Object ID
+     * @param string $action Action to perform
+     * @param mixed $options Additional options
+     * @return string|null
+     */
+    protected function o_markInfo($id, $action, $options = '')
+    {
+        switch ($action) {
+            case 'new':
+                $this->objects[$id] = ['t' => 'markInfo', 'info' => []];
+                $this->markInfoId = $id;
+                break;
+
+            case 'out':
+                $res = "\n$id 0 obj\n<< /Marked true";
+                $res .= "\n/Suspects false";
                 $res .= " >>\nendobj";
 
                 return $res;
@@ -3215,6 +3253,13 @@ EOT;
             $this->numObj++;
             $this->o_structTreeRoot($this->numObj, 'new');
             $this->o_catalog($this->catalogId, 'structTreeRoot', $this->numObj);
+        }
+
+        // Create mark info dictionary and ref in catalog
+        if ($this->markInfoId === 0) {
+            $this->numObj++;
+            $this->o_markInfo($this->numObj, 'new');
+            $this->o_catalog($this->catalogId, 'markInfo', $this->numObj);
         }
     }
 
