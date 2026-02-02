@@ -913,24 +913,28 @@ class Cpdf
 
                 if (isset($o['info']['kids'])) {
                     $kids = $o['info']['kids'];
-                    if (is_array($kids)) {
+                    if (is_array($kids) && !isset($kids['ref']) && !isset($kids['mcid'])) {
+                        // Array of kids
                         $res .= "\n/K [";
                         foreach ($kids as $kid) {
-                            if (is_int($kid)) {
-                                // MCID (just a number)
-                                $res .= "$kid ";
-                            } else {
+                            // Check if it's marked as object reference
+                            if (is_array($kid) && isset($kid['ref'])) {
                                 // Object reference
+                                $res .= $kid['ref'] . " 0 R ";
+                            } else {
+                                // Fallback: treat integers as object refs
                                 $res .= "$kid 0 R ";
                             }
                         }
                         $res .= "]";
                     } else {
-                        // Single kid
+                        // Single kid - either MCID (int) or object ref (array with 'ref')
                         if (is_int($kids)) {
+                            // MCID
                             $res .= "\n/K $kids";
-                        } else {
-                            $res .= "\n/K $kids 0 R";
+                        } elseif (is_array($kids) && isset($kids['ref'])) {
+                            // Single object reference
+                            $res .= "\n/K " . $kids['ref'] . " 0 R";
                         }
                     }
                 }

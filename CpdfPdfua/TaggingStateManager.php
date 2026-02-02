@@ -23,7 +23,7 @@ class TaggingStateManager
 
     public function getNextMcid(): int
     {
-        return ++$this->mcidCounter;
+        return $this->mcidCounter++;
     }
 
     public function resetMcidCounter(): void

@@ -179,14 +179,14 @@ class CpdfPdfua extends Cpdf
                 foreach ($elemData['children'] as $childKey) {
                     $childObjectId = $this->structElemRegistry->getObjectId($childKey);
                     if ($childObjectId) {
-                        $kidRefs[] = $childObjectId;
+                        $kidRefs[] = ['ref' => $childObjectId]; // Mark as object reference
                     }
                 }
                 if (!empty($kidRefs)) {
                     $this->o_structElem($objectId, 'kids', $kidRefs);
                 }
             } elseif ($elemData['mcid'] !== null) {
-                // Leaf element with MCID
+                // Leaf element with MCID - pass as single value, not array
                 $this->o_structElem($objectId, 'kids', $elemData['mcid']);
                 
                 // Set page reference
