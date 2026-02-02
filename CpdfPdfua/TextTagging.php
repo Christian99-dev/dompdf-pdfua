@@ -25,7 +25,7 @@ class TextTagging
         // PHASE 1: Analyze - What should we do?
         $decision = $this->analyze($stateManager);
 
-        print "[TextTagging] [TaggingDecision] {$decision->name}\n";
+        // print "[TextTagging] [TaggingDecision] {$decision->name}\n";
 
         // PHASE 2: Execute - Do it!
         return $this->execute($decision, $stateManager, $textCallback, $addContentCallback, $onMarkedContentAdded);

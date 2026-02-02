@@ -17,7 +17,7 @@ class TaggingStateManager
 
     public function setState(TaggingState $state): void
     {
-        print "[TaggingStateManager] [TaggingState] changed from {$this->state->name} to {$state->name}\n";
+        // print "[TaggingStateManager] [TaggingState] changed from {$this->state->name} to {$state->name}\n";
         $this->state = $state;
     }
 
