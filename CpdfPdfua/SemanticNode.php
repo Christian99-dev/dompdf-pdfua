@@ -89,10 +89,15 @@ class SemanticNode
     
     public function hasSameStructuralParentAs(SemanticNode $otherNode): bool
     {
-        $thisParent = $this->getNextStructuralParentNode()->getDomNode();
-        $otherParent = $otherNode->getNextStructuralParentNode()->getDomNode();
+        $thisParent = $this->getNextStructuralParentNode();
+        $otherParent = $otherNode->getNextStructuralParentNode();
+            
+        // If either has no parent, they can't have the same parent
+        if ($thisParent === null || $otherParent === null) {
+            return false;
+        }
 
-        return $thisParent === $otherParent;
+        return $thisParent->getDomNode() === $otherParent->getDomNode();
     }
 
     public function isTextNode(): bool
