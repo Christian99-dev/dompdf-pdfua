@@ -402,6 +402,11 @@ class Cpdf
     protected $parentTreeData = [];
 
     /**
+     * @var integer Current structure parent index for pages
+     */
+    protected $structParentIndex = 0;
+
+    /**
      * @var array The list of the core fonts
      */
     protected static $coreFonts = [
@@ -2211,6 +2216,12 @@ EOT;
                     ]
                 ];
 
+                // Add StructParents for PDF/UA
+                if ($this->pdfua) {
+                    $this->objects[$id]['info']['structParents'] = $this->structParentIndex;
+                    $this->structParentIndex++;
+                }
+
                 if (is_array($options)) {
                     // then this must be a page insertion, array should contain 'rid','pos'=[before|after]
                     $options['id'] = $id;
@@ -2328,6 +2339,11 @@ EOT;
 
                         $res .= "\n>>";
                     }
+                }
+
+                // Add StructParents for PDF/UA
+                if (isset($o['info']['structParents'])) {
+                    $res .= "\n/StructParents " . $o['info']['structParents'];
                 }
 
                 $res .= "\n>>\nendobj";
@@ -3316,6 +3332,12 @@ EOT;
     public function enablePdfUACompliance()
     {
         $this->pdfua = true;
+        
+        // Add StructParents to first page (created before enablePdfUACompliance was called)
+        if ($this->currentPage && !isset($this->objects[$this->currentPage]['info']['structParents'])) {
+            $this->objects[$this->currentPage]['info']['structParents'] = $this->structParentIndex;
+            $this->structParentIndex++;
+        }
         
         // Create parent tree (must be created before StructTreeRoot references it)
         if ($this->parentTreeId === 0) {
