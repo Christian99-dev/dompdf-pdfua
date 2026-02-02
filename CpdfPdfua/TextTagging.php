@@ -13,12 +13,14 @@ class TextTagging
      * @param TaggingStateManager $stateManager State manager
      * @param callable $textCallback Text rendering callback from Cpdf
      * @param callable $addContentCallback Content adding callback from Cpdf
+     * @param callable $onMarkedContentAdded Callback when marked content is added
      * @return string Rendered content with tagging
      */
     public function process(
         TaggingStateManager $stateManager,
         callable $textCallback,
         callable $addContentCallback,
+        callable $onMarkedContentAdded
     ): string {
         // PHASE 1: Analyze - What should we do?
         $decision = $this->analyze($stateManager);
@@ -26,7 +28,7 @@ class TextTagging
         print "[TextTagging] [TaggingDecision] {$decision->name}\n";
 
         // PHASE 2: Execute - Do it!
-        return $this->execute($decision, $stateManager, $textCallback, $addContentCallback);
+        return $this->execute($decision, $stateManager, $textCallback, $addContentCallback, $onMarkedContentAdded);
     }
 
     /**
@@ -91,12 +93,14 @@ class TextTagging
      * @param TaggingStateManager $stateManager State manager
      * @param callable $contentRenderer Content rendering callback
      * @param callable $addContentCallback Content adding callback
+     * @param callable $onMarkedContentAdded Callback when marked content is added
      */
     public function execute(
         TaggingDecision $decision,
         TaggingStateManager $stateManager,
         callable $textCallback,
-        callable $addContentCallback
+        callable $addContentCallback,
+        callable $onMarkedContentAdded
     ): string {
         $output = '';
         $pdfTag = null;
@@ -124,6 +128,8 @@ class TextTagging
 
                 $addContentCallback(TagOps::startMarkedContent($pdfTag, $mcid));
                 $textCallback();
+
+                $onMarkedContentAdded($pdfTag, $mcid);
                 break;
 
             // Open Artifact
