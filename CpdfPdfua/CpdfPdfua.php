@@ -41,6 +41,25 @@ class CpdfPdfua extends Cpdf
     public $onMarkedContentAdded;
 
     /**
+     * Current link structure element key (for StructParent linkage)
+     * @var string|null
+     */
+    private $currentLinkStructElemKey = null;
+
+    /**
+     * Pending link annotations waiting for structure elements
+     * @var array Array of [annotId => structParentIndex]
+     */
+    private $pendingLinkAnnotations = [];
+
+    /**
+     * Global StructParent counter
+     * Start at 10000 to avoid collision with page StructParents indices (0, 1, 2, ...)
+     * @var int
+     */
+    private $structParentCounter = 10000;
+
+    /**
      * Constructor
      */
     public function __construct($pageSize = [0, 0, 612, 792], $isUnicode = false, $fontcache = '', $tmp = '')
@@ -66,6 +85,7 @@ class CpdfPdfua extends Cpdf
             // Register all ancestors as containers (except the last one which will be the leaf)
             $parentKey = $documentRootKey;
             $chainLength = count($ancestorChain);
+            $leafStructElemKey = null;
             
             for ($i = 0; $i < $chainLength; $i++) {
                 $ancestorNode = $ancestorChain[$i];
@@ -89,9 +109,64 @@ class CpdfPdfua extends Cpdf
                         $ancestorNode->getExpansion(),
                         $ancestorNode->getTitle()
                     );
+                    
+                    // Store the key of the last registered element (leaf)
+                    $structElems = $this->structElemRegistry->getStructElems();
+                    $leafStructElemKey = array_key_last($structElems);
                 } else {
                     // Container element - get or create
                     $parentKey = $this->getOrCreateContainerElement($ancestorTag, $ancestorNode, $parentKey);
+                }
+            }
+            
+            // If this is a Link element (leaf with text/MCID), store its key for StructParent linkage
+            if ($tag === 'Link' && $leafStructElemKey !== null) {
+                $this->currentLinkStructElemKey = $leafStructElemKey;
+                if ($this->debugEnabled) {
+                    print "[CPDF PDFUA] Stored Link StructElem key: $leafStructElemKey\n";
+                }
+                
+                // Check if there's a pending link annotation waiting for this structure element
+                if (!empty($this->pendingLinkAnnotations)) {
+                    // Pop the first pending annotation (FIFO)
+                    $annotId = array_key_first($this->pendingLinkAnnotations);
+                    $annotInfo = $this->pendingLinkAnnotations[$annotId];
+                    unset($this->pendingLinkAnnotations[$annotId]);
+                    
+                    // Store the linkage for later resolution during finalization
+                    // This will add the OBJR to the Link StructElem's kids
+                    $this->objects[$annotId]['info']['linkStructElemKey'] = $leafStructElemKey;
+                    $this->objects[$annotId]['info']['linkAnnotId'] = $annotId;
+                    $this->objects[$annotId]['info']['linkPageId'] = $annotInfo['pageId'];
+                    
+                    print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link StructElem $leafStructElemKey\n";
+                }
+            } else {
+                // Check if there's a Link container in the ancestor chain (e.g., <a><img></a>)
+                // This handles links without text content (container-only links)
+                foreach ($ancestorChain as $ancestorNode) {
+                    if ($ancestorNode->getPdfStructureTag() === 'Link') {
+                        // Generate container key for this Link element
+                        $domNode = $ancestorNode->getDomNode();
+                        $nodeId = spl_object_id($domNode);
+                        $linkContainerKey = 'link_container_' . $nodeId;
+                        
+                        // Check if there's a pending link annotation
+                        if (!empty($this->pendingLinkAnnotations) && $this->structElemRegistry->hasStructElem($linkContainerKey)) {
+                            // Pop the first pending annotation (FIFO)
+                            $annotId = array_key_first($this->pendingLinkAnnotations);
+                            $annotInfo = $this->pendingLinkAnnotations[$annotId];
+                            unset($this->pendingLinkAnnotations[$annotId]);
+                            
+                            // Store the linkage for later resolution
+                            $this->objects[$annotId]['info']['linkStructElemKey'] = $linkContainerKey;
+                            $this->objects[$annotId]['info']['linkAnnotId'] = $annotId;
+                            $this->objects[$annotId]['info']['linkPageId'] = $annotInfo['pageId'];
+                            
+                            print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link container $linkContainerKey\n";
+                            break;  // Only link to first Link ancestor
+                        }
+                    }
                 }
             }
 
@@ -314,6 +389,90 @@ class CpdfPdfua extends Cpdf
                         $structParentsIndex = $pageObj['info']['structParents'];
                         $this->addToParentTree($structParentsIndex, $objectId);
                     }
+                }
+            }
+        }
+        
+        // Third pass: Handle deferred OBJR additions and ParentTree linkages for annotations
+        // (annotations created before structure elements had object IDs)
+        foreach ($this->objects as $objId => $obj) {
+            if (isset($obj['info']['linkStructElemKey']) && isset($obj['info']['linkAnnotId'])) {
+                $linkStructElemKey = $obj['info']['linkStructElemKey'];
+                $linkStructElemObjectId = $this->structElemRegistry->getObjectId($linkStructElemKey);
+                $annotId = $obj['info']['linkAnnotId'];
+                $pageId = $obj['info']['linkPageId'];
+                
+                if ($linkStructElemObjectId !== null && isset($obj['info']['structParent'])) {
+                    $structParentIndex = $obj['info']['structParent'];
+                    
+                    // Create indirect OBJR object (PDF/UA best practice)
+                    $this->numObj++;
+                    $objrObjectId = $this->numObj;
+                    $this->o_objr($objrObjectId, 'new', [
+                        'obj' => $annotId,
+                        'pg' => $pageId
+                    ]);
+                    
+                    // Get current kids (should be MCID from link text)
+                    $currentKids = $this->objects[$linkStructElemObjectId]['info']['kids'] ?? null;
+                    $mcid = is_int($currentKids) ? $currentKids : null;
+                    
+                    if ($mcid !== null) {
+                        // Create a Span StructElem for the link text MCID
+                        $this->numObj++;
+                        $spanObjectId = $this->numObj;
+                        $this->o_structElem($spanObjectId, 'new');
+                        $this->o_structElem($spanObjectId, 'structType', 'Span');
+                        $this->o_structElem($spanObjectId, 'parent', $linkStructElemObjectId);
+                        $this->o_structElem($spanObjectId, 'kids', $mcid);
+                        $this->o_structElem($spanObjectId, 'page', $pageId);
+                        
+                        // Link StructElem contains Span (with text MCID) and OBJR (with annotation)
+                        $this->objects[$linkStructElemObjectId]['info']['kids'] = [
+                            ['ref' => $spanObjectId],   // Span with link text
+                            ['ref' => $objrObjectId]    // OBJR with annotation
+                        ];
+                        
+                        // CRITICAL FIX: Update ParentTree for MCID to point to Span (leaf), not Link (container)
+                        // The MCID is the index in the ParentTree array for the page's StructParents key
+                        // We need to update ParentTree[pageStructParents][MCID] from linkStructElemObjectId to spanObjectId
+                        $pageStructParentsKey = $this->objects[$pageId]['info']['structParents'] ?? null;
+                        if ($pageStructParentsKey !== null && isset($this->parentTreeData[$pageStructParentsKey])) {
+                            // The MCID is the index in the array
+                            if (isset($this->parentTreeData[$pageStructParentsKey][$mcid])) {
+                                $oldValue = $this->parentTreeData[$pageStructParentsKey][$mcid];
+                                $this->parentTreeData[$pageStructParentsKey][$mcid] = $spanObjectId;
+                                print "[CPDF PDFUA] ParentTree: Updated MCID $mcid mapping - ParentTree[$pageStructParentsKey][$mcid]: $oldValue -> $spanObjectId\n";
+                            }
+                        }
+                        
+                        print "[CPDF PDFUA] Link StructElem $linkStructElemObjectId: /K -> [Span $spanObjectId (MCID $mcid), OBJR $objrObjectId]\n";
+                    } else {
+                        // No MCID - this is a container Link (e.g., <a><img></a>)
+                        // The container may already have children (e.g., Figure elements)
+                        // Add OBJR to existing children, don't replace them
+                        $existingKids = $this->objects[$linkStructElemObjectId]['info']['kids'] ?? [];
+                        
+                        // Ensure kids is an array
+                        if (!is_array($existingKids)) {
+                            $existingKids = [$existingKids];
+                        }
+                        
+                        // Add OBJR reference to the kids array
+                        $existingKids[] = ['ref' => $objrObjectId];
+                        $this->objects[$linkStructElemObjectId]['info']['kids'] = $existingKids;
+                        
+                        print "[CPDF PDFUA] Link StructElem $linkStructElemObjectId: /K -> [...existing children, OBJR $objrObjectId]\n";
+                    }
+                    
+                    // Remove /Pg from Link StructElem since children have it
+                    unset($this->objects[$linkStructElemObjectId]['info']['page']);
+                    
+                    // CRITICAL: ParentTree[StructParent] must point to Link StructElem, not OBJR
+                    // The OBJR is a child of the Link that references back to the annotation
+                    // Annotation → /StructParent N → ParentTree[N] → Link StructElem → /K contains OBJR → Annotation
+                    $this->setParentTreeSingle($structParentIndex, $linkStructElemObjectId);
+                    print "[CPDF PDFUA] ParentTree: StructParent $structParentIndex -> Link StructElem $linkStructElemObjectId (contains OBJR $objrObjectId for annotation $annotId)\n";
                 }
             }
         }
@@ -581,6 +740,146 @@ class CpdfPdfua extends Cpdf
         $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
             parent::addSvgFromFile($img, $x, $y, $w, $h);
         });
+    }
+
+    // ========================
+    // Link Operations
+    // ========================
+
+    function addLink($url, $x0, $y0, $x1, $y1)
+    {
+        if (!$this->pdfua) {
+            parent::addLink($url, $x0, $y0, $x1, $y1);
+            return;
+        }
+
+        print "[CpdfPdfua] addLink: $url\n";
+
+        // Store current numObj before creating annotation
+        $numObjBefore = $this->numObj;
+        
+        // Create the link annotation (creates 2 objects: annotation + action)
+        parent::addLink($url, $x0, $y0, $x1, $y1);
+        
+        // The annotation ID is numObjBefore + 1 (first object created)
+        $annotId = $numObjBefore + 1;
+        
+        // Get alt text from current semantic node
+        $linkNode = $this->taggingStateManager->getCurrentSemanticNode();
+        $altText = $linkNode ? $linkNode->getAlt() : null;
+        
+        // If no alt text, use URL as fallback
+        if ($altText === null) {
+            $altText = $url;
+        }
+        
+        // Add Contents key and StructParent to annotation (required by PDF/UA)
+        if (isset($this->objects[$annotId]['info'])) {
+            $this->objects[$annotId]['info']['contents'] = $altText;
+            
+            // Store link node for later use when wrapping text
+            // This will be used in addText to wrap link content in /Link tag
+            $this->objects[$annotId]['info']['linkNode'] = $linkNode;
+            
+            // Add StructParent linkage
+            // Note: Link structure elements are created AFTER addLink() is called,
+            // so we store this as pending and link it when the structure element is created
+            $structParentIndex = $this->structParentCounter++;
+            $this->objects[$annotId]['info']['structParent'] = $structParentIndex;
+            
+            // Store annotation info for OBJR creation
+            $this->pendingLinkAnnotations[$annotId] = [
+                'structParent' => $structParentIndex,
+                'pageId' => $this->currentPage  // Store current page for OBJR
+            ];
+            
+            print "[CPDF PDFUA] Link annotation $annotId created (pending StructParent $structParentIndex): $altText\n\n";
+        }
+    }
+
+    /**
+     * Check if we are currently inside a link element
+     */
+    private function isInsideLinkElement(): bool
+    {
+        $currentNode = $this->taggingStateManager->getCurrentSemanticNode();
+        return $currentNode && $currentNode->isLinkNode();
+    }
+
+    /**
+     * Override annotation output to add Contents key for PDF/UA compliance
+     */
+    protected function o_annotation($id, $action, $options = '')
+    {
+        // For 'new' action, let parent handle it first
+        if ($action === 'new') {
+            $result = parent::o_annotation($id, $action, $options);
+            return $result;
+        }
+        
+        // For 'out' action, call parent and modify output if needed
+        if ($action === 'out') {
+            $result = parent::o_annotation($id, $action, $options);
+            
+            // If PDF/UA is enabled, add Contents and StructParent keys
+            if ($this->pdfua) {
+                $modifications = '';
+                
+                // Add Contents key if present
+                if (isset($this->objects[$id]['info']['contents'])) {
+                    $contents = $this->objects[$id]['info']['contents'];
+                    // Use hex string format with UTF-16BE encoding (like /Alt)
+                    $contentsUtf16 = $this->utf8toUtf16BE($contents, true);
+                    $modifications .= "\n/Contents <" . bin2hex($contentsUtf16) . ">";
+                }
+                
+                // Add StructParent key if present
+                if (isset($this->objects[$id]['info']['structParent'])) {
+                    $structParent = $this->objects[$id]['info']['structParent'];
+                    $modifications .= "\n/StructParent " . $structParent;
+                }
+                
+                // Insert modifications before closing >>
+                if ($modifications !== '') {
+                    $result = str_replace(
+                        "\n>>\nendobj",
+                        $modifications . "\n>>\nendobj",
+                        $result
+                    );
+                }
+            }
+            
+            return $result;
+        }
+        
+        // For any other action, just call parent
+        return parent::o_annotation($id, $action, $options);
+    }
+
+    /**
+     * Override page output to add /Tabs key for pages with annotations (PDF/UA 7.18.3)
+     */
+    protected function o_page($id, $action, $options = '')
+    {
+        // For 'out' action, add /Tabs /S if page has annotations
+        if ($action === 'out' && $this->pdfua) {
+            $result = parent::o_page($id, $action, $options);
+            
+            // Check if page has annotations
+            if (isset($this->objects[$id]['info']['annot']) && !empty($this->objects[$id]['info']['annot'])) {
+                // Insert /Tabs /S before closing >>
+                $result = str_replace(
+                    "\n>>\nendobj",
+                    "\n/Tabs /S\n>>\nendobj",
+                    $result
+                );
+            }
+            
+            return $result;
+        }
+        
+        // For any other action, call parent
+        return parent::o_page($id, $action, $options);
     }
 
 }

@@ -938,13 +938,13 @@ class Cpdf
 
                 // Set all PDF attributes if present
                 if (isset($o['info']['alt'])) {
-                    $altText = $this->utf8toUtf16BE($o['info']['alt']);
-                    $res .= "\n/Alt (" . $this->filterText($altText, false, false) . ")";
+                    $altText = $this->utf8toUtf16BE($o['info']['alt'], true);
+                    $res .= "\n/Alt <" . bin2hex($altText) . ">";
                 }
 
                 if (isset($o['info']['actualText'])) {
-                    $actualText = $this->utf8toUtf16BE($o['info']['actualText']);
-                    $res .= "\n/ActualText (" . $this->filterText($actualText, false, false) . ")";
+                    $actualText = $this->utf8toUtf16BE($o['info']['actualText'], true);
+                    $res .= "\n/ActualText <" . bin2hex($actualText) . ">";
                 }
 
                 if (isset($o['info']['lang'])) {
@@ -952,39 +952,50 @@ class Cpdf
                 }
 
                 if (isset($o['info']['expansion'])) {
-                    $expansion = $this->utf8toUtf16BE($o['info']['expansion']);
-                    $res .= "\n/E (" . $this->filterText($expansion, false, false) . ")";
+                    $expansion = $this->utf8toUtf16BE($o['info']['expansion'], true);
+                    $res .= "\n/E <" . bin2hex($expansion) . ">";
                 }
 
                 if (isset($o['info']['title'])) {
-                    $title = $this->utf8toUtf16BE($o['info']['title']);
-                    $res .= "\n/T (" . $this->filterText($title, false, false) . ")";
+                    $title = $this->utf8toUtf16BE($o['info']['title'], true);
+                    $res .= "\n/T <" . bin2hex($title) . ">";
                 }
 
                 if (isset($o['info']['kids'])) {
                     $kids = $o['info']['kids'];
-                    if (is_array($kids) && !isset($kids['ref']) && !isset($kids['mcid'])) {
+                    if (is_array($kids) && !isset($kids['ref']) && !isset($kids['mcid']) && !isset($kids['objr']) && !isset($kids['mcr'])) {
                         // Array of kids
                         $res .= "\n/K [";
                         foreach ($kids as $kid) {
-                            // Check if it's marked as object reference
-                            if (is_array($kid) && isset($kid['ref'])) {
-                                // Object reference
+                            if (is_int($kid)) {
+                                // MCID (integer)
+                                $res .= "$kid ";
+                            } elseif (is_array($kid) && isset($kid['ref'])) {
+                                // Object reference (StructElem or OBJR)
                                 $res .= $kid['ref'] . " 0 R ";
-                            } else {
-                                // Fallback: treat integers as object refs
-                                $res .= "$kid 0 R ";
+                            } elseif (is_array($kid) && isset($kid['objr'])) {
+                                // Inline OBJR (Object Reference to annotation)
+                                $res .= "<< /Type /OBJR /Obj " . $kid['objr'] . " 0 R /Pg " . $kid['pg'] . " 0 R >> ";
+                            } elseif (is_array($kid) && isset($kid['mcr'])) {
+                                // MCR (Marked Content Reference)
+                                $res .= "<< /Type /MCR /Pg " . $kid['pg'] . " 0 R /MCID " . $kid['mcr'] . " >> ";
                             }
                         }
                         $res .= "]";
                     } else {
-                        // Single kid - either MCID (int) or object ref (array with 'ref')
+                        // Single kid - either MCID (int), object ref (array with 'ref'), OBJR, or MCR
                         if (is_int($kids)) {
                             // MCID
                             $res .= "\n/K $kids";
                         } elseif (is_array($kids) && isset($kids['ref'])) {
                             // Single object reference
                             $res .= "\n/K " . $kids['ref'] . " 0 R";
+                        } elseif (is_array($kids) && isset($kids['objr'])) {
+                            // Single inline OBJR
+                            $res .= "\n/K << /Type /OBJR /Obj " . $kids['objr'] . " 0 R /Pg " . $kids['pg'] . " 0 R >>";
+                        } elseif (is_array($kids) && isset($kids['mcr'])) {
+                            // Single MCR
+                            $res .= "\n/K << /Type /MCR /Pg " . $kids['pg'] . " 0 R /MCID " . $kids['mcr'] . " >>";
                         }
                     }
                 }
@@ -1027,11 +1038,20 @@ class Cpdf
                     
                     foreach ($this->parentTreeData as $pageIndex => $structElemIds) {
                         if (!empty($structElemIds)) {
-                            $res .= "\n$pageIndex [";
-                            foreach ($structElemIds as $structElemId) {
-                                $res .= "$structElemId 0 R ";
+                            // Check if it's a single reference (for OBJR) or array (for page MCIDs)
+                            if (is_array($structElemIds) && count($structElemIds) === 1 && isset($structElemIds['single'])) {
+                                // Single reference (typically for annotation OBJR)
+                                $res .= "\n$pageIndex " . $structElemIds['single'] . " 0 R";
+                            } else {
+                                // Array of references (for page MCIDs)
+                                $res .= "\n$pageIndex [";
+                                foreach ($structElemIds as $structElemId) {
+                                    if (!is_string($structElemId) || $structElemId !== 'single') {
+                                        $res .= "$structElemId 0 R ";
+                                    }
+                                }
+                                $res .= "]";
                             }
-                            $res .= "]";
                         }
                     }
                     
@@ -1058,6 +1078,52 @@ class Cpdf
             $this->parentTreeData[$pageIndex] = [];
         }
         $this->parentTreeData[$pageIndex][] = $structElemId;
+    }
+
+    /**
+     * Set a single reference in the parent tree (for annotations/OBJR)
+     * This creates a single reference instead of an array
+     * 
+     * @param integer $structParentIndex The StructParent index from annotation
+     * @param integer $objrId The OBJR object ID
+     */
+    protected function setParentTreeSingle($structParentIndex, $objrId)
+    {
+        $this->parentTreeData[$structParentIndex] = ['single' => $objrId];
+    }
+
+    /**
+     * OBJR (Object Reference) object for linking annotations to structure tree
+     * 
+     * @param integer $id Object ID
+     * @param string $action Action to perform
+     * @param mixed $options Options (obj, pg)
+     * @return string|null
+     */
+    protected function o_objr($id, $action, $options = '')
+    {
+        switch ($action) {
+            case 'new':
+                $this->objects[$id] = [
+                    't' => 'objr',
+                    'info' => [
+                        'obj' => $options['obj'],  // Annotation object ID
+                        'pg' => $options['pg']      // Page object ID
+                    ]
+                ];
+                break;
+
+            case 'out':
+                $o = $this->objects[$id];
+                $res = "\n$id 0 obj\n";
+                $res .= "<< /Type /OBJR";
+                $res .= "\n/Obj " . $o['info']['obj'] . " 0 R";
+                $res .= "\n/Pg " . $o['info']['pg'] . " 0 R";
+                $res .= " >>\nendobj";
+                return $res;
+        }
+
+        return null;
     }
 
     /**

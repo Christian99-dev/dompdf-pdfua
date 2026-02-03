@@ -125,6 +125,11 @@ class SemanticNode
         return $this->domNode->nodeName === 'br';
     }
 
+    public function isLinkNode(): bool
+    {
+        return $this->domNode->nodeName === 'a';
+    }
+
     public function isArtifactNode(): bool
     {
         // Check current node and traverse up to check all parent elements
@@ -167,6 +172,18 @@ class SemanticNode
         if ($this->domNode instanceof \DOMElement) {
             $alt = $this->domNode->getAttribute('alt');
             return $alt !== '' ? $alt : null;
+        }
+        return null;
+    }
+
+    /**
+     * Get href attribute (for link elements)
+     */
+    public function getHref(): ?string
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            $href = $this->domNode->getAttribute('href');
+            return $href !== '' ? $href : null;
         }
         return null;
     }
