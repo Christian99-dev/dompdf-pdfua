@@ -377,19 +377,19 @@ class CpdfPdfua extends Cpdf
         });
     }
 
-    public function setLineTransparency(string $mode, float $opacity): void
-    {
-        $this->wrapInArtifact(function () use ($mode, $opacity) {
-            parent::setLineTransparency($mode, $opacity);
-        });
-    }
+    // public function setLineTransparency(string $mode, float $opacity): void
+    // {
+    //     $this->wrapInArtifact(function () use ($mode, $opacity) {
+    //         parent::setLineTransparency($mode, $opacity);
+    //     });
+    // }
 
-    public function setFillTransparency(string $mode, float $opacity): void
-    {
-        $this->wrapInArtifact(function () use ($mode, $opacity) {
-            parent::setFillTransparency($mode, $opacity);
-        });
-    }
+    // public function setFillTransparency(string $mode, float $opacity): void
+    // {
+    //     $this->wrapInArtifact(function () use ($mode, $opacity) {
+    //         parent::setFillTransparency($mode, $opacity);
+    //     });
+    // }
 
     function newPage($insert = 0, $id = 0, $pos = 'after')
     {
