@@ -17,28 +17,11 @@ class TagOps
      * 
      * @param string $tag PDF structure tag (P, H1, Table, etc.)
      * @param int $mcid Marked Content ID (unique per page)
-     * @param array $props Optional properties (Lang, ActualText, Alt, etc.)
      * @return string PDF BDC operator with newline
      */
-    public static function startMarkedContent(string $tag, int $mcid, array $props = []): string
+    public static function startMarkedContent(string $tag, int $mcid): string
     {
-        // Start with required MCID
-        $properties = sprintf('/MCID %d', $mcid);
-        
-        // Add optional properties if provided
-        if (isset($props['Lang']) && $props['Lang'] !== '') {
-            $properties .= sprintf(' /Lang (%s)', self::escape($props['Lang']));
-        }
-        
-        if (isset($props['ActualText']) && $props['ActualText'] !== '') {
-            $properties .= sprintf(' /ActualText (%s)', self::escape($props['ActualText']));
-        }
-        
-        if (isset($props['Alt']) && $props['Alt'] !== '') {
-            $properties .= sprintf(' /Alt (%s)', self::escape($props['Alt']));
-        }
-        
-        return sprintf("\n/%s <<%s>> BDC", $tag, $properties);
+        return sprintf("\n/%s <</MCID %d>> BDC", $tag, $mcid);
     }
     
     /**
