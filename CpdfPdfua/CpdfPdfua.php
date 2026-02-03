@@ -125,11 +125,11 @@ class CpdfPdfua extends Cpdf
             $parent = $parent->getNextStructuralParentNode();
         }
         
-        print "[buildAncestorChain] Raw chain (" . count($rawChain) . " elements): ";
-        foreach ($rawChain as $node) {
-            print $node->getDomNode()->nodeName . " > ";
-        }
-        print "\n";
+        // print "[buildAncestorChain] Raw chain (" . count($rawChain) . " elements): ";
+        // foreach ($rawChain as $node) {
+            // print $node->getDomNode()->nodeName . " > ";
+        // }
+        // print "\n";
         
         // Check for flatten wrapper in chain
         $flattenWrapper = null;
