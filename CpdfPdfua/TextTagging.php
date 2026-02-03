@@ -68,16 +68,18 @@ class TextTagging
                     return TaggingDecision::OPEN_SEMANTIC_WITH_PARENT_TAG;
                 }
             case TaggingState::SEMANTIC:
+                // Check artifact status first before checking same parent
+                if ($isArtifact) {
+                    return TaggingDecision::CLOSE_AND_OPEN_ARTIFACT;
+                }
 
                 if ($inSameParent) {
                     return TaggingDecision::CONTINUE;
                 }
 
-                if ($isArtifact) {
-                    return TaggingDecision::CLOSE_AND_OPEN_ARTIFACT;
-                } else {
-                    return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
-                }
+                // Different parent, still semantic
+                return TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG;
+                
             case TaggingState::ARTIFACT:
 
                 if($isArtifact) {

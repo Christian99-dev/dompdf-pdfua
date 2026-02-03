@@ -127,14 +127,29 @@ class SemanticNode
 
     public function isArtifactNode(): bool
     {
-        // get aria-hidden attribute
-        if ($this->domNode instanceof \DOMElement) {
-            $ariaHidden = $this->domNode->getAttribute('aria-hidden');
-            
-            if ($ariaHidden === '') {
-                return true;
+        // Check current node and traverse up to check all parent elements
+        $node = $this->domNode;
+        
+        while ($node !== null) {
+            // Only DOMElements can have attributes
+            if ($node instanceof \DOMElement) {
+                $ariaHidden = $node->getAttribute('aria-hidden');
+                
+                // Check if aria-hidden="true" (not empty string, which means attribute doesn't exist)
+                if ($ariaHidden === 'true') {
+                    return true;
+                }
+                
+                // Stop at body/html to avoid going too far up
+                if ($node->nodeName === 'body' || $node->nodeName === 'html') {
+                    break;
+                }
             }
+            
+            // Move up to parent
+            $node = $node->parentNode;
         }
+        
         return false;
     }
 
