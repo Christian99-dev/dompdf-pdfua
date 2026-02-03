@@ -900,6 +900,31 @@ class Cpdf
                 $o['info']['page'] = $options;
                 break;
 
+            case 'alt':
+                // Set the alternate text
+                $o['info']['alt'] = $options;
+                break;
+
+            case 'actualText':
+                // Set the actual text replacement
+                $o['info']['actualText'] = $options;
+                break;
+
+            case 'lang':
+                // Set the language
+                $o['info']['lang'] = $options;
+                break;
+
+            case 'expansion':
+                // Set the expanded form/explanation (/E)
+                $o['info']['expansion'] = $options;
+                break;
+
+            case 'title':
+                // Set the title (/T)
+                $o['info']['title'] = $options;
+                break;
+
             case 'out':
                 $res = "\n$id 0 obj\n<< /Type /StructElem";
 
@@ -909,6 +934,31 @@ class Cpdf
 
                 if (isset($o['info']['parent'])) {
                     $res .= "\n/P " . $o['info']['parent'] . " 0 R";
+                }
+
+                // Set all PDF attributes if present
+                if (isset($o['info']['alt'])) {
+                    $altText = $this->utf8toUtf16BE($o['info']['alt']);
+                    $res .= "\n/Alt (" . $this->filterText($altText, false, false) . ")";
+                }
+
+                if (isset($o['info']['actualText'])) {
+                    $actualText = $this->utf8toUtf16BE($o['info']['actualText']);
+                    $res .= "\n/ActualText (" . $this->filterText($actualText, false, false) . ")";
+                }
+
+                if (isset($o['info']['lang'])) {
+                    $res .= "\n/Lang (" . $o['info']['lang'] . ")";
+                }
+
+                if (isset($o['info']['expansion'])) {
+                    $expansion = $this->utf8toUtf16BE($o['info']['expansion']);
+                    $res .= "\n/E (" . $this->filterText($expansion, false, false) . ")";
+                }
+
+                if (isset($o['info']['title'])) {
+                    $title = $this->utf8toUtf16BE($o['info']['title']);
+                    $res .= "\n/T (" . $this->filterText($title, false, false) . ")";
                 }
 
                 if (isset($o['info']['kids'])) {

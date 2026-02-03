@@ -75,8 +75,18 @@ class CpdfPdfua extends Cpdf
                 $isLeaf = ($i === $chainLength - 1);
                 
                 if ($isLeaf) {
-                    // Last element in chain - register with MCID
-                    $this->structElemRegistry->registerStructElem($ancestorTag, $mcid, $pageId, $parentKey);
+                    // Last element in chain - register with MCID and all attributes
+                    $this->structElemRegistry->registerStructElem(
+                        $ancestorTag,
+                        $mcid,
+                        $pageId,
+                        $parentKey,
+                        $ancestorNode->getAlt(),
+                        $ancestorNode->getActualText(),
+                        $ancestorNode->getLang(),
+                        $ancestorNode->getExpansion(),
+                        $ancestorNode->getTitle()
+                    );
                 } else {
                     // Container element - get or create
                     $parentKey = $this->getOrCreateContainerElement($ancestorTag, $ancestorNode, $parentKey);
@@ -134,7 +144,12 @@ class CpdfPdfua extends Cpdf
             $tag,
             null,  // No MCID for containers
             null,  // No page for containers
-            $parentKey
+            $parentKey,
+            $node->getAlt(),
+            $node->getActualText(),
+            $node->getLang(),
+            $node->getExpansion(),
+            $node->getTitle()
         );
         
         // Store under the container key
@@ -166,6 +181,23 @@ class CpdfPdfua extends Cpdf
             // Create the StructElem object
             $this->o_structElem($objectId, 'new');
             $this->o_structElem($objectId, 'structType', $elemData['type']);
+            
+            // Set PDF attributes if present
+            if (!empty($elemData['alt'])) {
+                $this->o_structElem($objectId, 'alt', $elemData['alt']);
+            }
+            if (!empty($elemData['actualText'])) {
+                $this->o_structElem($objectId, 'actualText', $elemData['actualText']);
+            }
+            if (!empty($elemData['lang'])) {
+                $this->o_structElem($objectId, 'lang', $elemData['lang']);
+            }
+            if (!empty($elemData['expansion'])) {
+                $this->o_structElem($objectId, 'expansion', $elemData['expansion']);
+            }
+            if (!empty($elemData['title'])) {
+                $this->o_structElem($objectId, 'title', $elemData['title']);
+            }
         }
 
         // Second pass: Set up parent-child relationships

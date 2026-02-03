@@ -47,7 +47,12 @@ class StructElemRegistry
             'parent' => null,       // Root has no parent
             'children' => [],
             'mcid' => null,         // Root has no MCID
-            'page' => null
+            'page' => null,
+            'alt' => null,
+            'actualText' => null,
+            'lang' => null,
+            'expansion' => null,
+            'title' => null
         ];
 
         $this->documentRootKey = $key;
@@ -61,9 +66,24 @@ class StructElemRegistry
      * @param int|null $mcid Marked Content ID (null for container elements)
      * @param int|null $pageIndex Page object ID (null for container elements)
      * @param string|null $parentKey Key of parent element (null = document root)
+     * @param string|null $alt Alternate description (/Alt)
+     * @param string|null $actualText Replacement text (/ActualText)
+     * @param string|null $lang Language (/Lang)
+     * @param string|null $expansion Expanded form (/E)
+     * @param string|null $title Title (/T)
      * @return string The unique key for this element
      */
-    public function registerStructElem(string $tagType, ?int $mcid, ?int $pageIndex, ?string $parentKey = null): string
+    public function registerStructElem(
+        string $tagType,
+        ?int $mcid,
+        ?int $pageIndex,
+        ?string $parentKey = null,
+        ?string $alt = null,
+        ?string $actualText = null,
+        ?string $lang = null,
+        ?string $expansion = null,
+        ?string $title = null
+    ): string
     {
         // Ensure document root exists
         if ($this->documentRootKey === null) {
@@ -86,7 +106,12 @@ class StructElemRegistry
             'parent' => $parentKey,
             'children' => [],
             'mcid' => $mcid,
-            'page' => $pageIndex
+            'page' => $pageIndex,
+            'alt' => $alt,
+            'actualText' => $actualText,
+            'lang' => $lang,
+            'expansion' => $expansion,
+            'title' => $title
         ];
 
         // Add to parent's children

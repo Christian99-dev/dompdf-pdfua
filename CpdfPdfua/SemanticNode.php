@@ -153,6 +153,71 @@ class SemanticNode
         return false;
     }
 
+    /**
+     * Get /Alt - Alternate description for non-text objects (primarily for Figure elements)
+     * Maps from data-pdf-alt attribute
+     */
+    public function getAlt(): ?string
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            $alt = $this->domNode->getAttribute('data-pdf-alt');
+            return $alt !== '' ? $alt : null;
+        }
+        return null;
+    }
+
+    /**
+     * Get /ActualText - Replacement text for reading/copying
+     * Maps from data-pdf-actual-text attribute
+     */
+    public function getActualText(): ?string
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            $actualText = $this->domNode->getAttribute('data-pdf-actual-text');
+            return $actualText !== '' ? $actualText : null;
+        }
+        return null;
+    }
+
+    /**
+     * Get /Lang - Language specification
+     * Maps from lang attribute (standard HTML)
+     */
+    public function getLang(): ?string
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            $lang = $this->domNode->getAttribute('lang');
+            return $lang !== '' ? $lang : null;
+        }
+        return null;
+    }
+
+    /**
+     * Get /E - Expanded form/explanation
+     * Maps from data-pdf-expansion attribute
+     */
+    public function getExpansion(): ?string
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            $expansion = $this->domNode->getAttribute('data-pdf-expansion');
+            return $expansion !== '' ? $expansion : null;
+        }
+        return null;
+    }
+
+    /**
+     * Get /T - Title
+     * Maps from title attribute (standard HTML)
+     */
+    public function getTitle(): ?string
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            $title = $this->domNode->getAttribute('title');
+            return $title !== '' ? $title : null;
+        }
+        return null;
+    }
+
     public function isInlineTag(): bool
     {
         $transparentTags = [
