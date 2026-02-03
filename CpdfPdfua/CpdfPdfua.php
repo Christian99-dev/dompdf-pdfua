@@ -916,29 +916,6 @@ class CpdfPdfua extends Cpdf
     }
 
     /**
-     * Override catalog output to add /Lang key (PDF/UA requirement)
-     */
-    protected function o_catalog($id, $action, $options = '')
-    {
-        // For 'out' action, add /Lang if document language is set
-        if ($action === 'out' && $this->pdfua && $this->documentLanguage !== null) {
-            $result = parent::o_catalog($id, $action, $options);
-            
-            // Insert /Lang before closing >>
-            $result = str_replace(
-                "\n>>\nendobj",
-                "\n/Lang (" . $this->documentLanguage . ")\n>>\nendobj",
-                $result
-            );
-            
-            return $result;
-        }
-        
-        // For any other action, call parent
-        return parent::o_catalog($id, $action, $options);
-    }
-
-    /**
      * Override o_toUnicode to generate proper Unicode mappings for PDF/UA
      * The parent implementation maps everything to U+0000
      */
