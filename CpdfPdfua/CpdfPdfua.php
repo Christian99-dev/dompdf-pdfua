@@ -190,6 +190,7 @@ class CpdfPdfua extends Cpdf
      * - Removes container elements between flatten wrapper and leaf
      * - Keeps wrapper if shouldIncludeSelfInFlatten() = true
      * - Always keeps the leaf element (element with actual content/MCID)
+     * - Removes all nodes with data-dompdf-hide attribute (and their children)
      */
     private function buildAncestorChain(?SemanticNode $currentNode): array
     {
@@ -212,6 +213,10 @@ class CpdfPdfua extends Cpdf
             array_unshift($rawChain, $parent); // Add to beginning (root first)
             $parent = $parent->getNextStructuralParentNode();
         }
+        
+        // HIDING: Filter out nodes with data-dompdf-hide (children stay connected to hidden node's parent)
+        $rawChain = array_values(array_filter($rawChain, fn($node) => !$node->hasHideAttribute()));
+        if (empty($rawChain)) return [];
         
         // print "[buildAncestorChain] Raw chain (" . count($rawChain) . " elements): ";
         // foreach ($rawChain as $node) {

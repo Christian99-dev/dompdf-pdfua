@@ -302,6 +302,20 @@ class SemanticNode
     }
 
     /**
+     * Check if element has the data-dompdf-hide attribute
+     * this is not like aria-hidden, but a custom attribute to hide elements from the PDF structure tree with its children
+     * 
+     * @return bool
+     */
+    public function hasHideAttribute(): bool
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            return $this->domNode->hasAttribute('data-dompdf-hide');
+        }
+        return false;
+    }
+
+    /**
     * String representation
     */
     public function __toString()
