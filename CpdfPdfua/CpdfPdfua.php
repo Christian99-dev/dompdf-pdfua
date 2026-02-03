@@ -892,4 +892,162 @@ class CpdfPdfua extends Cpdf
         return parent::o_page($id, $action, $options);
     }
 
+    /**
+     * Override o_toUnicode to generate proper Unicode mappings for PDF/UA
+     * The parent implementation maps everything to U+0000 which is invalid
+     */
+    protected function o_toUnicode($id, $action)
+    {
+        switch ($action) {
+            case 'new':
+                $this->objects[$id] = [
+                    't' => 'toUnicode'
+                ];
+                break;
+            case 'add':
+                break;
+            case 'out':
+                $ordering = 'UCS';
+                $registry = 'Adobe';
+
+                if ($this->encrypted) {
+                    $this->encryptInit($id);
+                    $ordering = $this->filterText($this->ARC4($ordering), false, false);
+                    $registry = $this->filterText($this->ARC4($registry), false, false);
+                }
+
+                // Generate proper identity mapping for Unicode fonts
+                // This maps each character code to its corresponding Unicode value
+                $stream = <<<EOT
+                /CIDInit /ProcSet findresource begin
+                12 dict begin
+                begincmap
+                /CIDSystemInfo
+                <</Registry ($registry)
+                /Ordering ($ordering)
+                /Supplement 0
+                >> def
+                /CMapName /Adobe-Identity-UCS def
+                /CMapType 2 def
+                1 begincodespacerange
+                <0000> <FFFF>
+                endcodespacerange
+                100 beginbfrange
+                <0000> <00FF> <0000>
+                <0100> <01FF> <0100>
+                <0200> <02FF> <0200>
+                <0300> <03FF> <0300>
+                <0400> <04FF> <0400>
+                <0500> <05FF> <0500>
+                <0600> <06FF> <0600>
+                <0700> <07FF> <0700>
+                <0800> <08FF> <0800>
+                <0900> <09FF> <0900>
+                <0A00> <0AFF> <0A00>
+                <0B00> <0BFF> <0B00>
+                <0C00> <0CFF> <0C00>
+                <0D00> <0DFF> <0D00>
+                <0E00> <0EFF> <0E00>
+                <0F00> <0FFF> <0F00>
+                <1000> <10FF> <1000>
+                <1100> <11FF> <1100>
+                <1200> <12FF> <1200>
+                <1300> <13FF> <1300>
+                <1400> <14FF> <1400>
+                <1500> <15FF> <1500>
+                <1600> <16FF> <1600>
+                <1700> <17FF> <1700>
+                <1800> <18FF> <1800>
+                <1900> <19FF> <1900>
+                <1A00> <1AFF> <1A00>
+                <1B00> <1BFF> <1B00>
+                <1C00> <1CFF> <1C00>
+                <1D00> <1DFF> <1D00>
+                <1E00> <1EFF> <1E00>
+                <1F00> <1FFF> <1F00>
+                <2000> <20FF> <2000>
+                <2100> <21FF> <2100>
+                <2200> <22FF> <2200>
+                <2300> <23FF> <2300>
+                <2400> <24FF> <2400>
+                <2500> <25FF> <2500>
+                <2600> <26FF> <2600>
+                <2700> <27FF> <2700>
+                <2800> <28FF> <2800>
+                <2900> <29FF> <2900>
+                <2A00> <2AFF> <2A00>
+                <2B00> <2BFF> <2B00>
+                <2C00> <2CFF> <2C00>
+                <2D00> <2DFF> <2D00>
+                <2E00> <2EFF> <2E00>
+                <2F00> <2FFF> <2F00>
+                <3000> <30FF> <3000>
+                <3100> <31FF> <3100>
+                <3200> <32FF> <3200>
+                <3300> <33FF> <3300>
+                <3400> <34FF> <3400>
+                <3500> <35FF> <3500>
+                <3600> <36FF> <3600>
+                <3700> <37FF> <3700>
+                <3800> <38FF> <3800>
+                <3900> <39FF> <3900>
+                <3A00> <3AFF> <3A00>
+                <3B00> <3BFF> <3B00>
+                <3C00> <3CFF> <3C00>
+                <3D00> <3DFF> <3D00>
+                <3E00> <3EFF> <3E00>
+                <3F00> <3FFF> <3F00>
+                <4000> <40FF> <4000>
+                <4100> <41FF> <4100>
+                <4200> <42FF> <4200>
+                <4300> <43FF> <4300>
+                <4400> <44FF> <4400>
+                <4500> <45FF> <4500>
+                <4600> <46FF> <4600>
+                <4700> <47FF> <4700>
+                <4800> <48FF> <4800>
+                <4900> <49FF> <4900>
+                <4A00> <4AFF> <4A00>
+                <4B00> <4BFF> <4B00>
+                <4C00> <4CFF> <4C00>
+                <4D00> <4DFF> <4D00>
+                <4E00> <4EFF> <4E00>
+                <4F00> <4FFF> <4F00>
+                <5000> <50FF> <5000>
+                <5100> <51FF> <5100>
+                <5200> <52FF> <5200>
+                <5300> <53FF> <5300>
+                <5400> <54FF> <5400>
+                <5500> <55FF> <5500>
+                <5600> <56FF> <5600>
+                <5700> <57FF> <5700>
+                <5800> <58FF> <5800>
+                <5900> <59FF> <5900>
+                <5A00> <5AFF> <5A00>
+                <5B00> <5BFF> <5B00>
+                <5C00> <5CFF> <5C00>
+                <5D00> <5DFF> <5D00>
+                <5E00> <5EFF> <5E00>
+                <5F00> <5FFF> <5F00>
+                <6000> <60FF> <6000>
+                <6100> <61FF> <6100>
+                <6200> <62FF> <6200>
+                <6300> <63FF> <6300>
+                endbfrange
+                endcmap
+                CMapName currentdict /CMap defineresource pop
+                end
+                end
+                EOT;
+
+                $res = "\n$id 0 obj\n";
+                $res .= "<</Length " . mb_strlen($stream, '8bit') . " >>\n";
+                $res .= "stream\n" . $stream . "\nendstream" . "\nendobj";
+
+                return $res;
+        }
+
+        return null;
+    }
+
 }
