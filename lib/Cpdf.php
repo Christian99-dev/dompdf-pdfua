@@ -1523,8 +1523,8 @@ class Cpdf
 
         $this->addMessage('selectFont: checking for - ' . $fbfile);
 
-        if ($this->pdfa && !file_exists($fbfile)) {
-            throw new \Exception("A fully embeddable font must be used when generating a document in PDF/A mode");
+        if (($this->pdfa || $this->pdfua) && !file_exists($fbfile)) {
+            throw new \Exception("A fully embeddable font must be used when generating a document in PDF/A or PDF/UA mode - font file $fbfile not found");
         } elseif (!$fileSuffix) {
             $this->addMessage(
                 'selectFont: pfb or ttf file not found, ok if this is one of the 14 standard fonts'
