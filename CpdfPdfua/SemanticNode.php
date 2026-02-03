@@ -155,12 +155,12 @@ class SemanticNode
 
     /**
      * Get /Alt - Alternate description for non-text objects (primarily for Figure elements)
-     * Maps from data-pdf-alt attribute
+     * Maps from alt attribute
      */
     public function getAlt(): ?string
     {
         if ($this->domNode instanceof \DOMElement) {
-            $alt = $this->domNode->getAttribute('data-pdf-alt');
+            $alt = $this->domNode->getAttribute('alt');
             return $alt !== '' ? $alt : null;
         }
         return null;
@@ -168,12 +168,12 @@ class SemanticNode
 
     /**
      * Get /ActualText - Replacement text for reading/copying
-     * Maps from data-pdf-actual-text attribute
+     * Maps from actual-text attribute
      */
     public function getActualText(): ?string
     {
         if ($this->domNode instanceof \DOMElement) {
-            $actualText = $this->domNode->getAttribute('data-pdf-actual-text');
+            $actualText = $this->domNode->getAttribute('actual-text');
             return $actualText !== '' ? $actualText : null;
         }
         return null;
@@ -194,12 +194,12 @@ class SemanticNode
 
     /**
      * Get /E - Expanded form/explanation
-     * Maps from data-pdf-expansion attribute
+     * Maps from expansion attribute
      */
     public function getExpansion(): ?string
     {
         if ($this->domNode instanceof \DOMElement) {
-            $expansion = $this->domNode->getAttribute('data-pdf-expansion');
+            $expansion = $this->domNode->getAttribute('expansion');
             return $expansion !== '' ? $expansion : null;
         }
         return null;
