@@ -656,6 +656,7 @@ class Cpdf
             case 'openHere':
             case 'names':
             case 'structTreeRoot':
+            case 'language':
             case 'markInfo':
                 $o['info'][$action] = $options;
                 break;
@@ -771,6 +772,11 @@ class Cpdf
                                 $res .= "\n $ref";
                             }
                             $res .= "\n]";
+                            break;
+
+                        case 'language':
+                            $v = $this->filterText($v, false, false);
+                            $res .= "\n/Lang ($v)";
                             break;
                     }
                 }
@@ -4385,6 +4391,16 @@ EOT;
     function getFirstPageId()
     {
         return $this->firstPageId;
+    }
+
+    /**
+     * Set the document language for PDF/UA compliance
+     *
+     * @param string $language Language code (e.g., 'en', 'de', 'fr')
+     */
+    public function setLanguage(string $language): void
+    {
+        $this->o_catalog($this->catalogId, 'language', $language);
     }
 
     /**

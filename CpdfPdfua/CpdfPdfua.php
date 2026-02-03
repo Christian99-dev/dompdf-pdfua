@@ -60,6 +60,12 @@ class CpdfPdfua extends Cpdf
     private $structParentCounter = 10000;
 
     /**
+     * Document language (set via setLanguage())
+     * @var string|null
+     */
+    private $documentLanguage = null;
+
+    /**
      * Constructor
      */
     public function __construct($pageSize = [0, 0, 612, 792], $isUnicode = false, $fontcache = '', $tmp = '')
@@ -342,8 +348,10 @@ class CpdfPdfua extends Cpdf
             if (!empty($elemData['actualText'])) {
                 $this->o_structElem($objectId, 'actualText', $elemData['actualText']);
             }
-            if (!empty($elemData['lang'])) {
-                $this->o_structElem($objectId, 'lang', $elemData['lang']);
+            // Use element's lang or fall back to document language
+            $langToUse = !empty($elemData['lang']) ? $elemData['lang'] : $this->documentLanguage;
+            if (!empty($langToUse)) {
+                $this->o_structElem($objectId, 'lang', $langToUse);
             }
             if (!empty($elemData['expansion'])) {
                 $this->o_structElem($objectId, 'expansion', $elemData['expansion']);
@@ -516,6 +524,16 @@ class CpdfPdfua extends Cpdf
     public function setDebugEnabled(bool $enabled): void
     {
         $this->debugEnabled = $enabled;
+    }
+
+    /**
+     * Sets the document language in the PDF catalog
+     * 
+     * @param string $language Language code (e.g., 'en', 'de', 'en-US')
+     */
+    public function setLanguage(string $language): void
+    {
+        parent::setLanguage($language);
     }
 
     // ========================
@@ -843,6 +861,11 @@ class CpdfPdfua extends Cpdf
                     $modifications .= "\n/Contents <" . bin2hex($contentsUtf16) . ">";
                 }
                 
+                // Add Lang key (use document language as fallback)
+                if ($this->documentLanguage !== null) {
+                    $modifications .= "\n/Lang (" . $this->documentLanguage . ")";
+                }
+                
                 // Add StructParent key if present
                 if (isset($this->objects[$id]['info']['structParent'])) {
                     $structParent = $this->objects[$id]['info']['structParent'];
@@ -890,6 +913,29 @@ class CpdfPdfua extends Cpdf
         
         // For any other action, call parent
         return parent::o_page($id, $action, $options);
+    }
+
+    /**
+     * Override catalog output to add /Lang key (PDF/UA requirement)
+     */
+    protected function o_catalog($id, $action, $options = '')
+    {
+        // For 'out' action, add /Lang if document language is set
+        if ($action === 'out' && $this->pdfua && $this->documentLanguage !== null) {
+            $result = parent::o_catalog($id, $action, $options);
+            
+            // Insert /Lang before closing >>
+            $result = str_replace(
+                "\n>>\nendobj",
+                "\n/Lang (" . $this->documentLanguage . ")\n>>\nendobj",
+                $result
+            );
+            
+            return $result;
+        }
+        
+        // For any other action, call parent
+        return parent::o_catalog($id, $action, $options);
     }
 
     /**

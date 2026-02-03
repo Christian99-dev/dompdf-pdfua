@@ -63,6 +63,13 @@ interface Canvas
     public function set_current_dom_node($node): void;
 
     /**
+     * Sets the document language
+     *
+     * @param string $language Language code (e.g., 'en', 'de', 'en-US')
+     */
+    public function set_language(string $language): void;
+
+    /**
      * Draws a line from x1,y1 to x2,y2
      *
      * See {@link Cpdf::setLineStyle()} for a description of the format of the

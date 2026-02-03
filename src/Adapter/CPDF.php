@@ -239,6 +239,13 @@ class CPDF implements Canvas
         $this->_pdf->addInfo($label, $value);
     }
 
+    public function set_language(string $language): void
+    {
+        if (method_exists($this->_pdf, 'setLanguage')) {
+            $this->_pdf->setLanguage($language);
+        }
+    }
+
     /**
      * Opens a new 'object'
      *

@@ -310,6 +310,11 @@ class PDFLib implements Canvas
         $this->_pdf->set_info($label, $value);
     }
 
+    public function set_language(string $language): void
+    {
+        // No-op for PDFLib adapter
+    }
+
     /**
      * Opens a new 'object' (template in PDFLib-speak)
      *

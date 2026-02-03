@@ -117,6 +117,11 @@ class GD implements Canvas
      */
     protected $dpi;
 
+    public function set_language(string $language): void
+    {
+        // No-op for GD adapter
+    }
+
     /**
      * Amount to scale font sizes
      *
