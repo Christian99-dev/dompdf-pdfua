@@ -3574,6 +3574,9 @@ EOT;
             $this->o_markInfo($this->numObj, 'new');
             $this->o_catalog($this->catalogId, 'markInfo', $this->numObj);
         }
+        
+        // Set ViewerPreferences with DisplayDocTitle = true
+        $this->o_catalog($this->catalogId, 'viewerPreferences', ['DisplayDocTitle' => 'true']);
     }
 
     public function setAdditionalXmpRdf(string $xmlRDFContents): void
@@ -3582,7 +3585,7 @@ EOT;
     }
 
     /**
-     * Generate the Metadata XMP XML for PDF/A
+     * Generate the Metadata XMP XML for PDF/A and PDF/UA
      *
      * @return string
      */
@@ -3593,13 +3596,30 @@ EOT;
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 
+EOT;
+
+        // Add PDF/A identification if enabled
+        if ($this->pdfa) {
+            $md .= <<<EOT
 <rdf:Description xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" rdf:about="">
 <pdfaid:part>3</pdfaid:part>
 <pdfaid:conformance>B</pdfaid:conformance>
 </rdf:Description>
 
-<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" rdf:about="">
 EOT;
+        }
+
+        // Add PDF/UA identification if enabled
+        if ($this->pdfua) {
+            $md .= <<<EOT
+<rdf:Description xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/" rdf:about="">
+<pdfuaid:part>1</pdfuaid:part>
+</rdf:Description>
+
+EOT;
+        }
+
+        $md .= "<rdf:Description xmlns:dc=\"http://purl.org/dc/elements/1.1/\" rdf:about=\"\">";
 
         $info = $this->objects[$this->infoObject]["info"];
 
@@ -3910,7 +3930,7 @@ EOT;
             $this->o_indirect_references($this->indirectReferenceId, 'add', ['JavaScript' => $js_id]);
         }
 
-        if ($this->pdfa) {
+        if ($this->pdfa || $this->pdfua) {
             $this->o_catalog($this->catalogId, 'metadata', $this->getXmpMetadata());
         }
 
