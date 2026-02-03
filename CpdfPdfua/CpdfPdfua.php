@@ -102,6 +102,11 @@ class CpdfPdfua extends Cpdf
     /**
      * Build ancestor chain from document root to parent of current text node
      * Returns array of SemanticNodes from root down (excluding body/html)
+     * 
+     * FLATTENING: If any ancestor has data-dompdf-pdf-structure-flatten:
+     * - Removes container elements between flatten wrapper and leaf
+     * - Keeps wrapper if shouldIncludeSelfInFlatten() = true
+     * - Always keeps the leaf element (element with actual content/MCID)
      */
     private function buildAncestorChain(?SemanticNode $textNode): array
     {
@@ -111,16 +116,72 @@ class CpdfPdfua extends Cpdf
         $current = $textNode->getNextStructuralParentNode();
         if ($current === null) return [];
         
-        $chain = [$current]; // Start with the direct parent (leaf element)
+        $rawChain = [$current]; // Start with the direct parent (leaf element)
         
         // Walk up to collect all ancestors
         $parent = $current->getNextStructuralParentNode();
         while ($parent !== null && !$parent->isBodyTag() && !$parent->isHtmlTag()) {
-            array_unshift($chain, $parent); // Add to beginning (root first)
+            array_unshift($rawChain, $parent); // Add to beginning (root first)
             $parent = $parent->getNextStructuralParentNode();
         }
         
-        return $chain;
+        print "[buildAncestorChain] Raw chain (" . count($rawChain) . " elements): ";
+        foreach ($rawChain as $node) {
+            print $node->getDomNode()->nodeName . " > ";
+        }
+        print "\n";
+        
+        // Check for flatten wrapper in chain
+        $flattenWrapper = null;
+        $flattenWrapperIndex = -1;
+        
+        foreach ($rawChain as $index => $node) {
+            if ($node->hasFlattenAttribute()) {
+                $flattenWrapper = $node;
+                $flattenWrapperIndex = $index;
+                // print "[buildAncestorChain] Found flatten wrapper: " . $node->getDomNode()->nodeName . " at index $index (includeSelf=" . ($node->shouldIncludeSelfInFlatten() ? 'true' : 'false') . ")\n";
+                break; // Use first (closest to leaf)
+            }
+        }
+        
+        // No flattening needed
+        if ($flattenWrapper === null) {
+            // print "[buildAncestorChain] No flattening, returning raw chain\n";
+            return $rawChain;
+        }
+        
+        // FLATTENING: Build filtered chain
+        $filteredChain = [];
+        
+        foreach ($rawChain as $index => $node) {
+            if ($index < $flattenWrapperIndex) {
+                // Before flatten region - keep
+                $filteredChain[] = $node;
+            } elseif ($index === $flattenWrapperIndex) {
+                // The flatten wrapper itself
+                if ($flattenWrapper->shouldIncludeSelfInFlatten()) {
+                    $filteredChain[] = $node;
+                    // print "[buildAncestorChain] Keeping flatten wrapper (include-self mode)\n";
+                } else {
+                    // print "[buildAncestorChain] Removing flatten wrapper (exclude-self mode)\n";
+                }
+            } elseif ($index === count($rawChain) - 1) {
+                // Last element = leaf with MCID - ALWAYS keep
+                $filteredChain[] = $node;
+                // print "[buildAncestorChain] Keeping leaf element: " . $node->getDomNode()->nodeName . "\n";
+            } else {
+                // Container between wrapper and leaf - remove
+                // print "[buildAncestorChain] Removing container: " . $node->getDomNode()->nodeName . "\n";
+            }
+        }
+        
+        // print "[buildAncestorChain] Filtered chain (" . count($filteredChain) . " elements): ";
+        foreach ($filteredChain as $node) {
+            print $node->getDomNode()->nodeName . " > ";
+        }
+        print "\n\n";
+        
+        return $filteredChain;
     }
     
     /**

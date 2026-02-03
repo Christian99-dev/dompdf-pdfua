@@ -242,6 +242,39 @@ class SemanticNode
     }
 
     /**
+     * Check if element has the data-dompdf-pdf-structure-flatten attribute
+     * 
+     * @return bool
+     */
+    public function hasFlattenAttribute(): bool
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            return $this->domNode->hasAttribute('data-dompdf-pdf-structure-flatten');
+        }
+        return false;
+    }
+
+    /**
+     * Check if flatten wrapper should keep itself in structure tree
+     * 
+     * @return bool True if attribute value is "include-self"
+     */
+    public function shouldIncludeSelfInFlatten(): bool
+    {
+        if (!$this->hasFlattenAttribute()) {
+            return false;
+        }
+        
+        if ($this->domNode instanceof \DOMElement) {
+            $value = $this->domNode->getAttribute('data-dompdf-pdf-structure-flatten');
+            // "include-self" → keep wrapper, empty/other → remove wrapper
+            return $value === 'include-self';
+        }
+        
+        return false;
+    }
+
+    /**
     * String representation
     */
     public function __toString()
