@@ -4296,6 +4296,42 @@ EOT;
             return $this->currentFontNum;
         }
 
+        // Automatically replace Core fonts with DejaVu fonts when PDF/UA or PDF/A is enabled
+        // Core fonts (Times, Helvetica, Courier) are not embeddable and therefore not compliant
+        if ($this->pdfa || $this->pdfua) {
+            // Extract basename if it's a full path
+            $baseFontName = basename($fontName);
+            $fontDir = dirname($fontName);
+            $fontNameLower = strtolower($baseFontName);
+            
+            $coreFontMapping = [
+                'times' => 'Deja Vu Serif',
+                'times-roman' => 'Deja Vu Serif',
+                'times new roman' => 'Deja Vu Serif',
+                'serif' => 'Deja Vu Serif',
+                'helvetica' => 'Deja Vu Sans',
+                'arial' => 'Deja Vu Sans',
+                'sans-serif' => 'Deja Vu Sans',
+                'courier' => 'Deja Vu SansMono',
+                'courier new' => 'Deja Vu SansMono',
+                'monospace' => 'Deja Vu SansMono',
+                'fixed' => 'Deja Vu SansMono',
+            ];
+            
+            if (isset($coreFontMapping[$fontNameLower])) {
+                $newFontName = $coreFontMapping[$fontNameLower];
+                $this->addMessage("selectFont: Core font '$fontNameLower' replaced with '$newFontName' for PDF/UA compliance");
+                
+                // If original fontName was just a basename, keep it as basename
+                // If it was a full path, preserve the directory structure
+                if ($fontDir !== '.' && $fontDir !== '') {
+                    $fontName = $fontDir . '/' . $newFontName;
+                } else {
+                    $fontName = $newFontName;
+                }
+            }
+        }
+
         if (!isset($this->fonts[$fontName])) {
             $this->addMessage("selectFont: selecting - $fontName - $encoding, $set");
 
