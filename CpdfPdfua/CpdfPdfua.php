@@ -232,6 +232,19 @@ class CpdfPdfua extends Cpdf
             return $rawChain;
         }
         
+        // CRITICAL: Check if there's a Link element between flatten wrapper and leaf
+        // Links act as a barrier - flattening stops at the Link
+        $linkIndex = -1;
+        for ($i = $flattenWrapperIndex + 1; $i < count($rawChain); $i++) {
+            if ($rawChain[$i]->isLinkNode()) {
+                $linkIndex = $i;
+                break; // Use first Link after flatten wrapper
+            }
+        }
+        
+        // If Link found, treat it as the new "leaf" - don't flatten beyond it
+        $effectiveLeafIndex = ($linkIndex !== -1) ? $linkIndex : count($rawChain) - 1;
+        
         // FLATTENING: Build filtered chain
         $filteredChain = [];
         
@@ -247,17 +260,14 @@ class CpdfPdfua extends Cpdf
                 } else {
                     // print "[buildAncestorChain] Removing flatten wrapper (exclude-self mode)\n";
                 }
-            } elseif ($index === count($rawChain) - 1) {
-                // Last element = leaf with MCID - ALWAYS keep
+            } elseif ($index >= $effectiveLeafIndex) {
+                // At or after effective leaf (Link or actual leaf) - ALWAYS keep
                 $filteredChain[] = $node;
-                // print "[buildAncestorChain] Keeping leaf element: " . $node->getDomNode()->nodeName . "\n";
             } else {
-                // Container between wrapper and leaf - remove
-                // print "[buildAncestorChain] Removing container: " . $node->getDomNode()->nodeName . "\n";
+                // Container between wrapper and effective leaf - remove
             }
         }
         
-        // print "[buildAncestorChain] Filtered chain (" . count($filteredChain) . " elements): ";
         foreach ($filteredChain as $node) {
             print $node->getDomNode()->nodeName . " > ";
         }
