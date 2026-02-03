@@ -318,6 +318,12 @@ class CpdfPdfua extends Cpdf
     {
         if (!$this->pdfua) return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
 
+        // empty text check
+        if (trim($text) === '') {
+            if ($this->debugEnabled) print "[CPDF PDFUA] addText(): Skipping empty text\n";
+            return;
+        }
+
         // Add whitespace if <br> is next node to prevent word concatenation in structure tree
         // this is bearly visible in the PDF, but important for screen readers
         $currentSemanticNode = $this->taggingStateManager->getCurrentSemanticNode();
