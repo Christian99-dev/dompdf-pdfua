@@ -47,8 +47,8 @@ class TaggingStateManager
             return;
         }
 
-        // Only track #text nodes for comparison, ignore element nodes like <p>, <strong>, <span>
-        if (!$node->isTextNode()) {
+        // Only track text nodes and image tags
+        if (!$node->isTextNode() && !$node->isImageNode()) {
             return;
         }
 
@@ -58,6 +58,8 @@ class TaggingStateManager
         }
 
         $this->currentSemanticNode = $node;
+
+        // print "[TaggingStateManager] CurrentSemanticNode set to: " . $node->getDomNode()->nodeName . "\n";s
     }
 
     public function getCurrentSemanticNode(): ?SemanticNode

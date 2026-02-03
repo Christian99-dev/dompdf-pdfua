@@ -129,6 +129,11 @@ class SemanticNode
     {
         // Check current node and traverse up to check all parent elements
         $node = $this->domNode;
+
+        // if its an image and it has no alt text, treat it as artifact
+        if($this->isImageNode() && ($this->getAlt() === null || $this->getAlt() === '')) {
+            return true;
+        }
         
         while ($node !== null) {
             // Only DOMElements can have attributes
@@ -239,6 +244,11 @@ class SemanticNode
             return true;
         }
         return false;
+    }
+
+    public function isImageNode(): bool
+    {
+        return $this->domNode->nodeName === 'img';
     }
 
     /**

@@ -52,8 +52,8 @@ class CpdfPdfua extends Cpdf
         $this->structElemRegistry = new StructElemRegistry();
 
         $this->onMarkedContentAdded = function ($tag, $mcid) {
+            print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
             if ($this->debugEnabled) {
-                print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
             }
 
             $pageId = $this->currentPage;
@@ -76,8 +76,10 @@ class CpdfPdfua extends Cpdf
                 
                 if ($isLeaf) {
                     // Last element in chain - register with MCID and all attributes
+                    // Use $tag parameter (from content stream) instead of $ancestorTag for leaf
+                    // This ensures Figure/Image tags from wrapImageInSemanticTag are used correctly
                     $this->structElemRegistry->registerStructElem(
-                        $ancestorTag,
+                        $tag,
                         $mcid,
                         $pageId,
                         $parentKey,
@@ -100,7 +102,7 @@ class CpdfPdfua extends Cpdf
     }
     
     /**
-     * Build ancestor chain from document root to parent of current text node
+     * Build ancestor chain from document root to current element
      * Returns array of SemanticNodes from root down (excluding body/html)
      * 
      * FLATTENING: If any ancestor has data-dompdf-pdf-structure-flatten:
@@ -108,15 +110,20 @@ class CpdfPdfua extends Cpdf
      * - Keeps wrapper if shouldIncludeSelfInFlatten() = true
      * - Always keeps the leaf element (element with actual content/MCID)
      */
-    private function buildAncestorChain(?SemanticNode $textNode): array
+    private function buildAncestorChain(?SemanticNode $currentNode): array
     {
-        if ($textNode === null) return [];
+        if ($currentNode === null) return [];
         
-        // Start with the structural parent of the text node (e.g., <p>)
-        $current = $textNode->getNextStructuralParentNode();
-        if ($current === null) return [];
-        
-        $rawChain = [$current]; // Start with the direct parent (leaf element)
+        // For text nodes, start with structural parent (e.g., <p>)
+        // For element nodes (img), start with the element itself
+        if ($currentNode->isTextNode()) {
+            $current = $currentNode->getNextStructuralParentNode();
+            if ($current === null) return [];
+            $rawChain = [$current]; // Start with parent (leaf element)
+        } else {
+            $current = $currentNode;
+            $rawChain = [$current]; // Start with current element (leaf element)
+        }
         
         // Walk up to collect all ancestors
         $parent = $current->getNextStructuralParentNode();
@@ -342,6 +349,10 @@ class CpdfPdfua extends Cpdf
         $this->debugEnabled = $enabled;
     }
 
+    // ========================
+    // Utility Methods
+    // ========================
+
     /**
      * Wrap a visual operation in an artifact tag
      * This closes any open semantic/artifact tag, wraps the operation in artifact, then restores state
@@ -371,8 +382,99 @@ class CpdfPdfua extends Cpdf
         $this->taggingStateManager->setState(TaggingState::ARTIFACT);
     }
 
+    /**
+     * Wrap image rendering in semantic Figure tag
+     * Basic version: Always wraps in Figure, no artifact detection yet
+     */
+    private function wrapImageInSemanticTag(string $img, callable $imageOperation)
+    {
+        if (!$this->pdfua) {
+            $imageOperation();
+            return;
+        }
+
+        $imgNode = $this->taggingStateManager->getCurrentSemanticNode();
+
+        // Check if image is a dompdf-generated temporary file (bg, canvas, borders)
+        $isDompdfTempImage = str_contains($img, 'bg_dompdf_img_');
+
+        $isArtefact = $imgNode === null || $imgNode->isArtifactNode() || $isDompdfTempImage;
+
+        if ($isArtefact) {
+            print "[CPDF PDFUA] addImage detected as Artifact, wrapping in Artifact tag\n\n";
+            // Image is decorative only - wrap in Artifact
+            $this->wrapInArtifact(function() use ($imageOperation) {
+                $imageOperation();
+            });
+            return;
+
+        }
+
+        $mcid = $this->taggingStateManager->getNextMcid();
+        $tag = 'Figure';
+
+        $currentState = $this->taggingStateManager->getState();
+
+        switch ($currentState) {
+            case TaggingState::SEMANTIC:
+                parent::addContent(TagOps::endMarkedContent());
+
+            case TaggingState::NONE:
+                parent::addContent(TagOps::startMarkedContent($tag, $mcid));
+                $this->taggingStateManager->setState(TaggingState::SEMANTIC);
+                $imageOperation();
+                break;
+            case TaggingState::ARTIFACT:
+                parent::addContent(TagOps::endMarkedContent());
+                parent::addContent(TagOps::startMarkedContent($tag, $mcid));
+                $imageOperation();
+                $this->taggingStateManager->setState(TaggingState::SEMANTIC);
+                break;
+        }
+
+        // Call the callback using callable syntax
+        ($this->onMarkedContentAdded)($tag, $mcid);
+
+        print "[CPDF PDFUA] addImage wrapped in Figure tag with mcid=$mcid\n\n";
+    }
+
     // ========================
-    // Cpdf Operations
+    // Page Operations
+    // ========================
+
+    function newPage($insert = 0, $id = 0, $pos = 'after')
+    {
+        if (!$this->pdfua) return parent::newPage($insert, $id, $pos);
+
+        // Close any open marked content before creating new page
+        if ($this->taggingStateManager->getState() !== TaggingState::NONE) {
+            parent::addContent(TagOps::endMarkedContent());
+            $this->taggingStateManager->setState(TaggingState::NONE);
+        }
+
+        // Reset MCID counter for new page
+        $this->taggingStateManager->resetMcidCounter();
+
+        // Create the new page
+        return parent::newPage($insert, $id, $pos);
+    }
+
+    function output($debug = false)
+    {
+        if (!$this->pdfua) return parent::output($debug);
+
+        if ($this->taggingStateManager->getState() !== TaggingState::NONE) {
+            parent::addContent(TagOps::endMarkedContent());
+        }
+
+        // Generate structure tree before output
+        $this->finalizeStructureTree();
+
+        return parent::output($debug);
+    }
+
+    // ========================
+    // Text Operations
     // ========================
 
     function addText($x, $y, $size, $text, $angle = 0, $wordSpaceAdjust = 0, $charSpaceAdjust = 0, $smallCaps = false)
@@ -408,7 +510,10 @@ class CpdfPdfua extends Cpdf
 
         if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
     }
-
+    
+    // ========================
+    // Drawing Operations
+    // ========================
     function filledRectangle($x1, $y1, $width, $height)
     {
         $this->wrapInArtifact(function() use ($x1, $y1, $width, $height) {
@@ -444,35 +549,38 @@ class CpdfPdfua extends Cpdf
         });
     }
 
-    function newPage($insert = 0, $id = 0, $pos = 'after')
+    // ========================
+    // Image Operations
+    // ========================
+
+    function addJpegFromFile($img, $x, $y, $w = 0, $h = 0)
     {
-        if (!$this->pdfua) return parent::newPage($insert, $id, $pos);
+        print "[CpdfPdfua] addJpegFromFile: $img\n";
 
-        // Close any open marked content before creating new page
-        if ($this->taggingStateManager->getState() !== TaggingState::NONE) {
-            parent::addContent(TagOps::endMarkedContent());
-            $this->taggingStateManager->setState(TaggingState::NONE);
-        }
+        // Wrap image in semantic Figure tag
+        $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
+            parent::addJpegFromFile($img, $x, $y, $w, $h);
+        });
+    }  
 
-        // Reset MCID counter for new page
-        $this->taggingStateManager->resetMcidCounter();
+    function addPngFromFile($img, $x, $y, $w = 0, $h = 0)
+    {
+        print "[CpdfPdfua] addPngFromFile: $img\n";
 
-        // Create the new page
-        return parent::newPage($insert, $id, $pos);
+        // Wrap image in semantic Figure tag
+        $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
+            parent::addPngFromFile($img, $x, $y, $w, $h);
+        });
     }
 
-    function output($debug = false)
+    function addSvgFromFile($img, $x, $y, $w = 0, $h = 0)
     {
-        if (!$this->pdfua) return parent::output($debug);
+        print "[CpdfPdfua] addSvgFromFile: $img\n";
 
-        if ($this->taggingStateManager->getState() !== TaggingState::NONE) {
-            parent::addContent(TagOps::endMarkedContent());
-        }
-
-        // Generate structure tree before output
-        $this->finalizeStructureTree();
-
-        return parent::output($debug);
+        // Wrap image in semantic Figure tag
+        $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
+            parent::addSvgFromFile($img, $x, $y, $w, $h);
+        });
     }
 
 }
