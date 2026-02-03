@@ -894,7 +894,7 @@ class CpdfPdfua extends Cpdf
 
     /**
      * Override o_toUnicode to generate proper Unicode mappings for PDF/UA
-     * The parent implementation maps everything to U+0000 which is invalid
+     * The parent implementation maps everything to U+0000
      */
     protected function o_toUnicode($id, $action)
     {
