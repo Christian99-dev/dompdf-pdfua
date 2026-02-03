@@ -82,7 +82,8 @@ class StructElemRegistry
         ?string $actualText = null,
         ?string $lang = null,
         ?string $expansion = null,
-        ?string $title = null
+        ?string $title = null,
+        bool $onTop = false
     ): string
     {
         // Ensure document root exists
@@ -116,7 +117,11 @@ class StructElemRegistry
 
         // Add to parent's children
         if (isset($this->structElems[$parentKey])) {
-            $this->structElems[$parentKey]['children'][] = $key;
+            if ($onTop) {
+                array_unshift($this->structElems[$parentKey]['children'], $key);
+            } else {
+                $this->structElems[$parentKey]['children'][] = $key;
+            }
         }
 
         return $key;

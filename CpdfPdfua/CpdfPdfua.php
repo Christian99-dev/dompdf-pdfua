@@ -113,7 +113,8 @@ class CpdfPdfua extends Cpdf
                         $ancestorNode->getActualText(),
                         $ancestorNode->getLang(),
                         $ancestorNode->getExpansion(),
-                        $ancestorNode->getTitle()
+                        $ancestorNode->getTitle(),
+                        $ancestorNode->hasOnTopAttribute()
                     );
                     
                     // Store the key of the last registered element (leaf)
@@ -313,7 +314,8 @@ class CpdfPdfua extends Cpdf
             $node->getActualText(),
             $node->getLang(),
             $node->getExpansion(),
-            $node->getTitle()
+            $node->getTitle(),
+            $node->hasOnTopAttribute()
         );
         
         // Store under the container key

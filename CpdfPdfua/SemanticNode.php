@@ -46,6 +46,13 @@ class SemanticNode
             'em' => 'Em',     'b' => 'Strong',    'i' => 'Em', 
             "body" => "P", 
         ];
+
+        if ($this->domNode instanceof \DOMElement) {
+            $customTag = $this->domNode->getAttribute('data-dompdf-pdf-tag');
+            if ($customTag !== '') {
+                return $customTag;
+            }
+        }
         
         return $mapping[$this->domNode->nodeName] ?? null;
     }
@@ -57,6 +64,14 @@ class SemanticNode
             return $structuralParentNode->getPdfStructureTag();
         }
         return null;
+    }
+
+    public function hasOnTopAttribute(): bool
+    {
+        if ($this->domNode instanceof \DOMElement) {
+            return $this->domNode->hasAttribute('data-dompdf-on-top');
+        }
+        return false;
     }
 
     public function getNextStructuralParentNode(): ?SemanticNode
