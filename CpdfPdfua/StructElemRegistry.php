@@ -128,6 +128,28 @@ class StructElemRegistry
     }
 
     /**
+     * Add MCID directly to a container element
+     * This is used for text that belongs directly to a container (e.g., P text outside of links)
+     * 
+     * @param string $containerKey Key of container element
+     * @param int $mcid Marked Content ID
+     * @param int $pageIndex Page object ID
+     */
+    public function addMcidToContainer(string $containerKey, int $mcid, int $pageIndex): void
+    {
+        if (!isset($this->structElems[$containerKey])) {
+            return;
+        }
+        
+        // Add MCID info to children array (mixed with child references)
+        $this->structElems[$containerKey]['children'][] = [
+            'type' => 'mcid',
+            'mcid' => $mcid,
+            'page' => $pageIndex
+        ];
+    }
+
+    /**
      * Set the PDF object ID for a structure element
      * 
      * @param string $key Element key

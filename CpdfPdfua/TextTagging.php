@@ -53,6 +53,8 @@ class TextTagging
             ? $currentSemanticNode->hasSameStructuralParentAs($previousSemanticNode)
             : false;
 
+        $jsLink = $currentSemanticNode->getStructuralParentPdfStructureTag() === 'Link';
+
         // print "[TextTagging] analyze(): \n\tisTextNode=" . ($isTextNode ? 'true' : 'false') . ",\n\tpdfTag=" . ($pdfTag ?? 'null') . ", \n\tisArtifact=" . ($isArtifact ? 'true' : 'false') . ", \n\tinSameParent=" . ($inSameParent ? 'true' : 'false') . "\n";
 
         if (!$currentSemanticNode->isTextNode() || $currentSemanticNode->getStructuralParentPdfStructureTag() === null) {

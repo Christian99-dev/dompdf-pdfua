@@ -88,7 +88,11 @@ class CpdfPdfua extends Cpdf
             $currentNode = $this->taggingStateManager->getCurrentSemanticNode();
             $ancestorChain = $this->buildAncestorChain($currentNode);
             
-            // Register all ancestors as containers (except the last one which will be the leaf)
+            // Special tags that need their own StructElem (not just MCID under parent)
+            $specialLeafTags = ['Link', 'Figure'];
+            $needsLeafStructElem = in_array($tag, $specialLeafTags);
+            
+            // Register all ancestors as containers
             $parentKey = $documentRootKey;
             $chainLength = count($ancestorChain);
             $leafStructElemKey = null;
@@ -98,10 +102,10 @@ class CpdfPdfua extends Cpdf
                 $ancestorTag = $ancestorNode->getPdfStructureTag();
                 if ($ancestorTag === null) continue;
                 
-                $isLeaf = ($i === $chainLength - 1);
+                $isLastInChain = ($i === $chainLength - 1);
                 
-                if ($isLeaf) {
-                    // Last element in chain - register with MCID and all attributes
+                if ($isLastInChain && $needsLeafStructElem) {
+                    // Special tags (Link, Figure) get their own StructElem with MCID
                     // Use $tag parameter (from content stream) instead of $ancestorTag for leaf
                     // This ensures Figure/Image tags from wrapImageInSemanticTag are used correctly
                     $this->structElemRegistry->registerStructElem(
@@ -123,6 +127,12 @@ class CpdfPdfua extends Cpdf
                 } else {
                     // Container element - get or create
                     $parentKey = $this->getOrCreateContainerElement($ancestorTag, $ancestorNode, $parentKey);
+                    
+                    // If this is the last element and it doesn't need a leaf StructElem,
+                    // add MCID directly to this container
+                    if ($isLastInChain && !$needsLeafStructElem) {
+                        $this->structElemRegistry->addMcidToContainer($parentKey, $mcid, $pageId);
+                    }
                 }
             }
             
@@ -387,14 +397,36 @@ class CpdfPdfua extends Cpdf
             // Set kids (children or MCID)
             if (!empty($elemData['children'])) {
                 $kidRefs = [];
-                foreach ($elemData['children'] as $childKey) {
-                    $childObjectId = $this->structElemRegistry->getObjectId($childKey);
-                    if ($childObjectId) {
-                        $kidRefs[] = ['ref' => $childObjectId]; // Mark as object reference
+                foreach ($elemData['children'] as $child) {
+                    if (is_string($child)) {
+                        // Child is a StructElem key (reference)
+                        $childObjectId = $this->structElemRegistry->getObjectId($child);
+                        if ($childObjectId) {
+                            $kidRefs[] = ['ref' => $childObjectId];
+                        }
+                    } elseif (is_array($child) && isset($child['type']) && $child['type'] === 'mcid') {
+                        // Child is a direct MCID - use MCR format with page reference
+                        $kidRefs[] = ['mcr' => $child['mcid'], 'pg' => $child['page']];
                     }
                 }
                 if (!empty($kidRefs)) {
+                    // Pass mixed array to o_structElem for /K array generation
                     $this->o_structElem($objectId, 'kids', $kidRefs);
+                    
+                    // Add MCIDs to ParentTree
+                    // Note: ParentTree maps page StructParents index to array of StructElems
+                    // MCIDs are indexed by their MCID value within the page's array
+                    foreach ($elemData['children'] as $child) {
+                        if (is_array($child) && isset($child['type']) && $child['type'] === 'mcid') {
+                            $pageIndex = $child['page'];
+                            // Get StructParents index for this page
+                            $pageObj = $this->objects[$pageIndex];
+                            if (isset($pageObj['info']['structParents'])) {
+                                $structParentsIndex = $pageObj['info']['structParents'];
+                                $this->addToParentTree($structParentsIndex, $objectId);
+                            }
+                        }
+                    }
                 }
             } elseif ($elemData['mcid'] !== null) {
                 // Leaf element with MCID - pass as single value, not array
