@@ -4298,6 +4298,7 @@ EOT;
 
         // Automatically replace Core fonts with DejaVu fonts when PDF/UA or PDF/A is enabled
         // Core fonts (Times, Helvetica, Courier) are not embeddable and therefore not compliant
+        $originalFontName = null; // Track if we mapped a font
         if ($this->pdfa || $this->pdfua) {
             // Extract basename if it's a full path
             $baseFontName = basename($fontName);
@@ -4307,12 +4308,24 @@ EOT;
             $coreFontMapping = [
                 'times' => 'Deja Vu Serif',
                 'times-roman' => 'Deja Vu Serif',
+                'times-bold' => 'Deja Vu Serif',
+                'times-italic' => 'Deja Vu Serif',
+                'times-bolditalic' => 'Deja Vu Serif',
                 'times new roman' => 'Deja Vu Serif',
                 'serif' => 'Deja Vu Serif',
                 'helvetica' => 'Deja Vu Sans',
+                'helvetica-bold' => 'Deja Vu Sans',
+                'helvetica-oblique' => 'Deja Vu Sans',
+                'helvetica-boldoblique' => 'Deja Vu Sans',
                 'arial' => 'Deja Vu Sans',
+                'arial-bold' => 'Deja Vu Sans',
+                'arial-italic' => 'Deja Vu Sans',
+                'arial-bolditalic' => 'Deja Vu Sans',
                 'sans-serif' => 'Deja Vu Sans',
                 'courier' => 'Deja Vu SansMono',
+                'courier-bold' => 'Deja Vu SansMono',
+                'courier-oblique' => 'Deja Vu SansMono',
+                'courier-boldoblique' => 'Deja Vu SansMono',
                 'courier new' => 'Deja Vu SansMono',
                 'monospace' => 'Deja Vu SansMono',
                 'fixed' => 'Deja Vu SansMono',
@@ -4321,6 +4334,8 @@ EOT;
             if (isset($coreFontMapping[$fontNameLower])) {
                 $newFontName = $coreFontMapping[$fontNameLower];
                 $this->addMessage("selectFont: Core font '$fontNameLower' replaced with '$newFontName' for PDF/UA compliance");
+                
+                $originalFontName = $fontName; // Save original name for later aliasing
                 
                 // If original fontName was just a basename, keep it as basename
                 // If it was a full path, preserve the directory structure
@@ -4388,6 +4403,12 @@ EOT;
                     $font['differences'] = $options['differences'];
                 }
             }
+        }
+
+        // If we mapped a Core font to DejaVu, create an alias so that code looking for the original name will find it
+        if ($originalFontName !== null && isset($this->fonts[$fontName]) && !isset($this->fonts[$originalFontName])) {
+            $this->fonts[$originalFontName] = &$this->fonts[$fontName];
+            $this->addMessage("selectFont: Created alias '$originalFontName' -> '$fontName'");
         }
 
         if ($set && isset($this->fonts[$fontName])) {
