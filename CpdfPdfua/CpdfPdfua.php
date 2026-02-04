@@ -77,7 +77,7 @@ class CpdfPdfua extends Cpdf
         $this->structElemRegistry = new StructElemRegistry();
 
         $this->onMarkedContentAdded = function ($tag, $mcid) {
-            print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
+            // print "[CPDF PDFUA] Marked Content Added: tag=$tag, mcid=" . $mcid . "\n";
             if ($this->debugEnabled) {
             }
 
@@ -130,7 +130,7 @@ class CpdfPdfua extends Cpdf
             if ($tag === 'Link' && $leafStructElemKey !== null) {
                 $this->currentLinkStructElemKey = $leafStructElemKey;
                 if ($this->debugEnabled) {
-                    print "[CPDF PDFUA] Stored Link StructElem key: $leafStructElemKey\n";
+                    // print "[CPDF PDFUA] Stored Link StructElem key: $leafStructElemKey\n";
                 }
                 
                 // Check if there's a pending link annotation waiting for this structure element
@@ -146,7 +146,7 @@ class CpdfPdfua extends Cpdf
                     $this->objects[$annotId]['info']['linkAnnotId'] = $annotId;
                     $this->objects[$annotId]['info']['linkPageId'] = $annotInfo['pageId'];
                     
-                    print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link StructElem $leafStructElemKey\n";
+                    // print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link StructElem $leafStructElemKey\n";
                 }
             } else {
                 // Check if there's a Link container in the ancestor chain (e.g., <a><img></a>)
@@ -170,7 +170,7 @@ class CpdfPdfua extends Cpdf
                             $this->objects[$annotId]['info']['linkAnnotId'] = $annotId;
                             $this->objects[$annotId]['info']['linkPageId'] = $annotInfo['pageId'];
                             
-                            print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link container $linkContainerKey\n";
+                            // print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link container $linkContainerKey\n";
                             break;  // Only link to first Link ancestor
                         }
                     }
@@ -281,9 +281,9 @@ class CpdfPdfua extends Cpdf
         }
         
         foreach ($filteredChain as $node) {
-            print $node->getDomNode()->nodeName . " > ";
+            // print $node->getDomNode()->nodeName . " > ";
         }
-        print "\n\n";
+        // print "\n\n";
         
         return $filteredChain;
     }
@@ -467,11 +467,11 @@ class CpdfPdfua extends Cpdf
                             if (isset($this->parentTreeData[$pageStructParentsKey][$mcid])) {
                                 $oldValue = $this->parentTreeData[$pageStructParentsKey][$mcid];
                                 $this->parentTreeData[$pageStructParentsKey][$mcid] = $spanObjectId;
-                                print "[CPDF PDFUA] ParentTree: Updated MCID $mcid mapping - ParentTree[$pageStructParentsKey][$mcid]: $oldValue -> $spanObjectId\n";
+                                // print "[CPDF PDFUA] ParentTree: Updated MCID $mcid mapping - ParentTree[$pageStructParentsKey][$mcid]: $oldValue -> $spanObjectId\n";
                             }
                         }
                         
-                        print "[CPDF PDFUA] Link StructElem $linkStructElemObjectId: /K -> [Span $spanObjectId (MCID $mcid), OBJR $objrObjectId]\n";
+                        // print "[CPDF PDFUA] Link StructElem $linkStructElemObjectId: /K -> [Span $spanObjectId (MCID $mcid), OBJR $objrObjectId]\n";
                     } else {
                         // No MCID - this is a container Link (e.g., <a><img></a>)
                         // The container may already have children (e.g., Figure elements)
@@ -487,7 +487,7 @@ class CpdfPdfua extends Cpdf
                         $existingKids[] = ['ref' => $objrObjectId];
                         $this->objects[$linkStructElemObjectId]['info']['kids'] = $existingKids;
                         
-                        print "[CPDF PDFUA] Link StructElem $linkStructElemObjectId: /K -> [...existing children, OBJR $objrObjectId]\n";
+                        // print "[CPDF PDFUA] Link StructElem $linkStructElemObjectId: /K -> [...existing children, OBJR $objrObjectId]\n";
                     }
                     
                     // Remove /Pg from Link StructElem since children have it
@@ -497,7 +497,7 @@ class CpdfPdfua extends Cpdf
                     // The OBJR is a child of the Link that references back to the annotation
                     // Annotation → /StructParent N → ParentTree[N] → Link StructElem → /K contains OBJR → Annotation
                     $this->setParentTreeSingle($structParentIndex, $linkStructElemObjectId);
-                    print "[CPDF PDFUA] ParentTree: StructParent $structParentIndex -> Link StructElem $linkStructElemObjectId (contains OBJR $objrObjectId for annotation $annotId)\n";
+                    // print "[CPDF PDFUA] ParentTree: StructParent $structParentIndex -> Link StructElem $linkStructElemObjectId (contains OBJR $objrObjectId for annotation $annotId)\n";
                 }
             }
         }
@@ -595,7 +595,7 @@ class CpdfPdfua extends Cpdf
         $isArtefact = $imgNode === null || $imgNode->isArtifactNode() || $isDompdfTempImage;
 
         if ($isArtefact) {
-            print "[CPDF PDFUA] addImage detected as Artifact, wrapping in Artifact tag\n\n";
+            // print "[CPDF PDFUA] addImage detected as Artifact, wrapping in Artifact tag\n\n";
             // Image is decorative only - wrap in Artifact
             $this->wrapInArtifact(function() use ($imageOperation) {
                 $imageOperation();
@@ -629,7 +629,7 @@ class CpdfPdfua extends Cpdf
         // Call the callback using callable syntax
         ($this->onMarkedContentAdded)($tag, $mcid);
 
-        print "[CPDF PDFUA] addImage wrapped in Figure tag with mcid=$mcid\n\n";
+        // print "[CPDF PDFUA] addImage wrapped in Figure tag with mcid=$mcid\n\n";
     }
 
     // ========================
@@ -677,7 +677,7 @@ class CpdfPdfua extends Cpdf
 
         // empty text check
         if (trim($text) === '') {
-            if ($this->debugEnabled) print "[CPDF PDFUA] addText(): Skipping empty text\n";
+            // if ($this->debugEnabled) print "[CPDF PDFUA] addText(): Skipping empty text\n";
             return;
         }
 
@@ -702,7 +702,7 @@ class CpdfPdfua extends Cpdf
             $this->onMarkedContentAdded
         );
 
-        if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
+        // if ($this->debugEnabled) print "[CPDF PDFUA] addText(x=$x, y=$y, size=$size, text=\"$text\")\n\n";
     }
     
     // ========================
@@ -749,7 +749,7 @@ class CpdfPdfua extends Cpdf
 
     function addJpegFromFile($img, $x, $y, $w = 0, $h = 0)
     {
-        print "[CpdfPdfua] addJpegFromFile: $img\n";
+        // print "[CpdfPdfua] addJpegFromFile: $img\n";
 
         // Wrap image in semantic Figure tag
         $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
@@ -759,7 +759,7 @@ class CpdfPdfua extends Cpdf
 
     function addPngFromFile($img, $x, $y, $w = 0, $h = 0)
     {
-        print "[CpdfPdfua] addPngFromFile: $img\n";
+        // print "[CpdfPdfua] addPngFromFile: $img\n";
 
         // Wrap image in semantic Figure tag
         $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
@@ -769,7 +769,7 @@ class CpdfPdfua extends Cpdf
 
     function addSvgFromFile($img, $x, $y, $w = 0, $h = 0)
     {
-        print "[CpdfPdfua] addSvgFromFile: $img\n";
+        // print "[CpdfPdfua] addSvgFromFile: $img\n";
 
         // Wrap image in semantic Figure tag
         $this->wrapImageInSemanticTag($img, function() use ($img, $x, $y, $w, $h) {
@@ -788,7 +788,7 @@ class CpdfPdfua extends Cpdf
             return;
         }
 
-        print "[CpdfPdfua] addLink: $url\n";
+        // print "[CpdfPdfua] addLink: $url\n";
 
         // Store current numObj before creating annotation
         $numObjBefore = $this->numObj;
@@ -828,7 +828,7 @@ class CpdfPdfua extends Cpdf
                 'pageId' => $this->currentPage  // Store current page for OBJR
             ];
             
-            print "[CPDF PDFUA] Link annotation $annotId created (pending StructParent $structParentIndex): $altText\n\n";
+            // print "[CPDF PDFUA] Link annotation $annotId created (pending StructParent $structParentIndex): $altText\n\n";
         }
     }
 
