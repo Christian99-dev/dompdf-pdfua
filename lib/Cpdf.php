@@ -1524,6 +1524,12 @@ class Cpdf
         $fileSuffix = $font['fileSuffix'];
         $fileSuffixLower = strtolower($font['fileSuffix']);
         $fbfile = "$fontFileName.$fileSuffix";
+        
+        // If fontFileName is just a basename (no directory), prepend fontcache path for file_exists check
+        if (dirname($fontFileName) === '.' || dirname($fontFileName) === '') {
+            $fbfile = $this->fontcache . '/' . $fbfile;
+        }
+        
         $isTtfFont = $fileSuffixLower === 'ttf';
         $isPfbFont = $fileSuffixLower === 'pfb';
 
@@ -4380,13 +4386,18 @@ EOT;
 
                 $this->o_font($this->numObj, 'new', $options);
 
-                if (file_exists("$fontName.ttf")) {
+                // Check if $fontName is just a basename (no directory) - if so, prepend fontcache path
+                $checkPath = (dirname($fontName) === '.' || dirname($fontName) === '') 
+                    ? $this->fontcache . '/' . $fontName 
+                    : $fontName;
+                
+                if (file_exists("$checkPath.ttf")) {
                     $fileSuffix = 'ttf';
-                } elseif (file_exists("$fontName.TTF")) {
+                } elseif (file_exists("$checkPath.TTF")) {
                     $fileSuffix = 'TTF';
-                } elseif (file_exists("$fontName.pfb")) {
+                } elseif (file_exists("$checkPath.pfb")) {
                     $fileSuffix = 'pfb';
-                } elseif (file_exists("$fontName.PFB")) {
+                } elseif (file_exists("$checkPath.PFB")) {
                     $fileSuffix = 'PFB';
                 } else {
                     $fileSuffix = '';
