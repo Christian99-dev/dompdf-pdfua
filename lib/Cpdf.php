@@ -5580,11 +5580,6 @@ EOT;
             $this->selectFont($this->defaultFont);
         }
 
-        // Fallback: if currentFont is not set or empty, use defaultFont
-        if (empty($this->currentFont) || !isset($this->fonts[$this->currentFont])) {
-            $this->selectFont($this->defaultFont);
-        }
-
         $font = $this->fonts[$this->currentFont];
 
         // for the current font, and the given size, what is the height of the font in user units
