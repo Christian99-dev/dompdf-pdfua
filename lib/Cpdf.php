@@ -931,6 +931,12 @@ class Cpdf
                 $o['info']['title'] = $options;
                 break;
 
+            case 'tableAttributes':
+                // Set table-specific attributes (/A with /O /Table)
+                // e.g. ['Scope' => 'Column'] for TH elements
+                $o['info']['tableAttributes'] = $options;
+                break;
+
             case 'out':
                 $res = "\n$id 0 obj\n<< /Type /StructElem";
 
@@ -1008,6 +1014,14 @@ class Cpdf
 
                 if (isset($o['info']['page'])) {
                     $res .= "\n/Pg " . $o['info']['page'] . " 0 R";
+                }
+
+                if (isset($o['info']['tableAttributes'])) {
+                    $res .= "\n/A << /O /Table";
+                    foreach ($o['info']['tableAttributes'] as $attrName => $attrValue) {
+                        $res .= " /" . $attrName . " /" . $attrValue;
+                    }
+                    $res .= " >>";
                 }
 
                 $res .= " >>\nendobj";

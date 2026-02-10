@@ -339,6 +339,21 @@ class CpdfPdfua extends Cpdf
     }
 
     /**
+     * Register all ancestor containers in the structure tree without adding an MCID.
+     * Used for empty cells (&nbsp; in TD) that need to exist in the tree but have no tagged content.
+     */
+    private function ensureAncestorContainers(SemanticNode $node): void
+    {
+        $parentKey = $this->structElemRegistry->registerDocumentRoot();
+        foreach ($this->buildAncestorChain($node) as $ancestor) {
+            $tag = $ancestor->getPdfStructureTag();
+            if ($tag !== null) {
+                $parentKey = $this->getOrCreateContainerElement($tag, $ancestor, $parentKey);
+            }
+        }
+    }
+
+    /**
      * Finalize the structure tree by creating all StructElem objects
      * This is called before output() to generate the actual PDF objects
      */
@@ -375,6 +390,9 @@ class CpdfPdfua extends Cpdf
             }
             if (!empty($elemData['title'])) {
                 $this->o_structElem($objectId, 'title', $elemData['title']);
+            }
+            if ($elemData['type'] === 'TH') {
+                $this->o_structElem($objectId, 'tableAttributes', ['Scope' => 'Column']);
             }
         }
 
@@ -713,9 +731,19 @@ class CpdfPdfua extends Cpdf
             return;
         }
 
+        $currentSemanticNode = $this->taggingStateManager->getCurrentSemanticNode();
+
+        // &nbsp; in TD: Keep TD in structure tree but don't tag the text node
+        // PDF/UA requires equal column count, so TD must exist — but empty cells need no MCID
+        if ($currentSemanticNode !== null 
+            && $currentSemanticNode->getNextStructuralParentNode()->isNonBreakingSpaceInTD()
+        ) {
+            $this->ensureAncestorContainers($currentSemanticNode);
+            return;
+        }
+
         // Add whitespace if <br> is next node to prevent word concatenation in structure tree
         // this is bearly visible in the PDF, but important for screen readers
-        $currentSemanticNode = $this->taggingStateManager->getCurrentSemanticNode();
         if($currentSemanticNode !== null &&
            $currentSemanticNode->isBeforeLineBreakNode()
         ) {

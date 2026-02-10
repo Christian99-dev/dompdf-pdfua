@@ -278,6 +278,10 @@ class SemanticNode
         return false;
     }
 
+    public function isNonBreakingSpaceInTD(): bool {
+        return ($this->domNode->nodeName === "td" || $this->domNode->nodeName === "th") && trim($this->domNode->textContent) === "\u{00a0}";
+    }
+
     public function isImageNode(): bool
     {
         return $this->domNode->nodeName === 'img';
