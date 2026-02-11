@@ -162,6 +162,14 @@ abstract class AbstractFrameDecorator extends Frame
      */
     function copy(DOMNode $node)
     {
+        // Mark split-source for PDF/UA tagging: link original and clone
+        $originalNode = $this->_frame->get_node();
+        if ($originalNode instanceof DOMElement && $node instanceof DOMElement) {
+            $sourceId = $originalNode->getAttribute('data-dompdf-split-source') ?: (string)spl_object_id($originalNode);
+            $originalNode->setAttribute('data-dompdf-split-source', $sourceId);
+            $node->setAttribute('data-dompdf-split-source', $sourceId);
+        }
+
         $frame = new Frame($node);
         $style = clone $this->_frame->get_style();
 

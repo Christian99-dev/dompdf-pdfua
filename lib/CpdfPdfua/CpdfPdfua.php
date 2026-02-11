@@ -89,13 +89,14 @@ class CpdfPdfua extends Cpdf
             $ancestorChain = $this->buildAncestorChain($currentNode);
             
             // Special tags that need their own StructElem (not just MCID under parent)
-            $specialLeafTags = ['Link', 'Figure'];
+            $specialLeafTags = ['Figure'];
             $needsLeafStructElem = in_array($tag, $specialLeafTags);
             
             // Register all ancestors as containers
             $parentKey = $documentRootKey;
             $chainLength = count($ancestorChain);
             $leafStructElemKey = null;
+            $linkContainerKey = null;
             
             for ($i = 0; $i < $chainLength; $i++) {
                 $ancestorNode = $ancestorChain[$i];
@@ -105,9 +106,7 @@ class CpdfPdfua extends Cpdf
                 $isLastInChain = ($i === $chainLength - 1);
                 
                 if ($isLastInChain && $needsLeafStructElem) {
-                    // Special tags (Link, Figure) get their own StructElem with MCID
-                    // Use $tag parameter (from content stream) instead of $ancestorTag for leaf
-                    // This ensures Figure/Image tags from wrapImageInSemanticTag are used correctly
+                    // Leaf StructElem (Figure)
                     $this->structElemRegistry->registerStructElem(
                         $tag,
                         $mcid,
@@ -120,13 +119,14 @@ class CpdfPdfua extends Cpdf
                         $ancestorNode->getTitle(),
                         $ancestorNode->hasOnTopAttribute()
                     );
-                    
-                    // Store the key of the last registered element (leaf)
-                    $structElems = $this->structElemRegistry->getStructElems();
-                    $leafStructElemKey = array_key_last($structElems);
+                    $leafStructElemKey = array_key_last($this->structElemRegistry->getStructElems());
                 } else {
                     // Container element - get or create
                     $parentKey = $this->getOrCreateContainerElement($ancestorTag, $ancestorNode, $parentKey);
+                    
+                    if ($ancestorTag === 'Link') {
+                        $linkContainerKey = $parentKey;
+                    }
                     
                     // If this is the last element and it doesn't need a leaf StructElem,
                     // add MCID directly to this container
@@ -136,54 +136,16 @@ class CpdfPdfua extends Cpdf
                 }
             }
             
-            // If this is a Link element (leaf with text/MCID), store its key for StructParent linkage
-            if ($tag === 'Link' && $leafStructElemKey !== null) {
-                $this->currentLinkStructElemKey = $leafStructElemKey;
-                if ($this->debugEnabled) {
-                    // print "[CPDF PDFUA] Stored Link StructElem key: $leafStructElemKey\n";
-                }
-                
-                // Check if there's a pending link annotation waiting for this structure element
+            // Handle Link annotation linkage (covers both text links and <a><img></a>)
+            if ($linkContainerKey !== null) {
+                $this->currentLinkStructElemKey = $linkContainerKey;
                 if (!empty($this->pendingLinkAnnotations)) {
-                    // Pop the first pending annotation (FIFO)
                     $annotId = array_key_first($this->pendingLinkAnnotations);
                     $annotInfo = $this->pendingLinkAnnotations[$annotId];
                     unset($this->pendingLinkAnnotations[$annotId]);
-                    
-                    // Store the linkage for later resolution during finalization
-                    // This will add the OBJR to the Link StructElem's kids
-                    $this->objects[$annotId]['info']['linkStructElemKey'] = $leafStructElemKey;
+                    $this->objects[$annotId]['info']['linkStructElemKey'] = $linkContainerKey;
                     $this->objects[$annotId]['info']['linkAnnotId'] = $annotId;
                     $this->objects[$annotId]['info']['linkPageId'] = $annotInfo['pageId'];
-                    
-                    // print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link StructElem $leafStructElemKey\n";
-                }
-            } else {
-                // Check if there's a Link container in the ancestor chain (e.g., <a><img></a>)
-                // This handles links without text content (container-only links)
-                foreach ($ancestorChain as $ancestorNode) {
-                    if ($ancestorNode->getPdfStructureTag() === 'Link') {
-                        // Generate container key for this Link element
-                        $domNode = $ancestorNode->getDomNode();
-                        $nodeId = spl_object_id($domNode);
-                        $linkContainerKey = 'link_container_' . $nodeId;
-                        
-                        // Check if there's a pending link annotation
-                        if (!empty($this->pendingLinkAnnotations) && $this->structElemRegistry->hasStructElem($linkContainerKey)) {
-                            // Pop the first pending annotation (FIFO)
-                            $annotId = array_key_first($this->pendingLinkAnnotations);
-                            $annotInfo = $this->pendingLinkAnnotations[$annotId];
-                            unset($this->pendingLinkAnnotations[$annotId]);
-                            
-                            // Store the linkage for later resolution
-                            $this->objects[$annotId]['info']['linkStructElemKey'] = $linkContainerKey;
-                            $this->objects[$annotId]['info']['linkAnnotId'] = $annotId;
-                            $this->objects[$annotId]['info']['linkPageId'] = $annotInfo['pageId'];
-                            
-                            // print "[CPDF PDFUA] Linked pending annotation $annotId (StructParent {$annotInfo['structParent']}) to Link container $linkContainerKey\n";
-                            break;  // Only link to first Link ancestor
-                        }
-                    }
                 }
             }
 
@@ -305,12 +267,21 @@ class CpdfPdfua extends Cpdf
     private function getOrCreateContainerElement(string $tag, SemanticNode $node, string $parentKey): string
     {
         // Generate a unique key based on DOM node identity
+        // Use split-source ID for cloned elements so all clones share the same container
         $domNode = $node->getDomNode();
-        $nodeId = spl_object_id($domNode);
+        $splitSource = ($domNode instanceof \DOMElement) ? $domNode->getAttribute('data-dompdf-split-source') : '';
+        $nodeId = ($splitSource !== '') ? 'split_' . $splitSource : (string)spl_object_id($domNode);
         $containerKey = strtolower($tag) . '_container_' . $nodeId;
         
         // Check if already registered
         if ($this->structElemRegistry->hasStructElem($containerKey)) {
+            // LI must contain LBody — return the LBody wrapper
+            if ($tag === 'LI') {
+                $lbodyKey = $containerKey . '_lbody';
+                if ($this->structElemRegistry->hasStructElem($lbodyKey)) {
+                    return $lbodyKey;
+                }
+            }
             return $containerKey;
         }
         
@@ -334,6 +305,15 @@ class CpdfPdfua extends Cpdf
         
         // Rename the key to our container key
         $this->structElemRegistry->renameKey($lastKey, $containerKey);
+
+        // LI must contain LBody wrapper per PDF/UA (7.2)
+        if ($tag === 'LI') {
+            $lbodyKey = $containerKey . '_lbody';
+            $this->structElemRegistry->registerStructElem('LBody', null, null, $containerKey);
+            $lbLastKey = array_key_last($this->structElemRegistry->getStructElems());
+            $this->structElemRegistry->renameKey($lbLastKey, $lbodyKey);
+            return $lbodyKey;
+        }
         
         return $containerKey;
     }
