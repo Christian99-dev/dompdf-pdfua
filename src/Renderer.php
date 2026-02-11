@@ -6,6 +6,7 @@
  */
 namespace Dompdf;
 
+use Dompdf\FrameDecorator\AbstractFrameDecorator;
 use Dompdf\Renderer\AbstractRenderer;
 use Dompdf\Renderer\Block;
 use Dompdf\Renderer\Image;
@@ -65,7 +66,13 @@ class Renderer extends AbstractRenderer
         }
 
         // Set current DOM node
-        $this->_canvas->set_current_dom_node($frame->get_node());
+        // Mark split-off clones so CpdfPdfua can detect inline-split continuations
+        $node = $frame->get_node();
+        if ($frame instanceof AbstractFrameDecorator && $frame->is_split_off && $node instanceof \DOMElement) {
+            $node->setAttribute('data-dompdf-split-off', '1');
+            echo "[Renderer] SPLIT-OFF marked: <{$node->nodeName}> frame_id=" . $node->getAttribute('frame_id') . " text=\"" . substr(trim($node->textContent), 0, 40) . "\"\n";
+        }
+        $this->_canvas->set_current_dom_node($node);
 
         $style = $frame->get_style();
 

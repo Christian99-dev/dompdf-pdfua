@@ -100,6 +100,9 @@ class Inline extends AbstractFrameDecorator
 
         $this->get_parent()->insert_child_after($split, $this);
 
+        $this->is_split = true;
+        $split->is_split_off = true;
+
         // Add $child and all following siblings to the new split node
         $iter = $child;
         while ($iter) {

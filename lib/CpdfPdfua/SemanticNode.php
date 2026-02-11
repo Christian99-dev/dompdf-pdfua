@@ -112,7 +112,11 @@ class SemanticNode
             return false;
         }
 
-        return $thisParent->getDomNode() === $otherParent->getDomNode();
+        $thisDom = $thisParent->getDomNode();
+        $otherDom = $otherParent->getDomNode();
+
+        return $thisDom === $otherDom
+            || ($thisDom instanceof \DOMElement && $thisDom->getAttribute('data-dompdf-split-off') === '1' && $thisDom->nodeName === $otherDom->nodeName);
     }
 
     public function isTextNode(): bool
