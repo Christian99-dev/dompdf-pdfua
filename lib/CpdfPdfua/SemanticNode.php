@@ -44,6 +44,7 @@ class SemanticNode
             'figure' => 'Figure',  'a' => 'Link',  'blockquote' => 'BlockQuote',
             'code' => 'Code', 'pre' => 'Code',    'strong' => 'Strong',
             'em' => 'Em',     'b' => 'Strong',    'i' => 'Em', 
+            'note' => 'Note', 'noteref' => 'Reference',
             "body" => "P", 
         ];
 
@@ -51,6 +52,17 @@ class SemanticNode
             $customTag = $this->domNode->getAttribute('data-dompdf-pdf-tag');
             if ($customTag !== '') {
                 return $customTag;
+            }
+
+            // ARIA role to PDF tag mapping (DPUB-ARIA)
+            $roleMapping = [
+                'doc-noteref' => 'Reference',
+                'doc-footnote' => 'Note',
+                'note' => 'Note',
+            ];
+            $role = $this->domNode->getAttribute('role');
+            if (isset($roleMapping[$role])) {
+                return $roleMapping[$role];
             }
         }
         
@@ -272,6 +284,13 @@ class SemanticNode
 
     public function isInlineTag(): bool
     {
+        // Elements with custom PDF tags or mapped ARIA roles are structural, not inline
+        if ($this->domNode instanceof \DOMElement
+            && ($this->domNode->getAttribute('data-dompdf-pdf-tag') !== ''
+                || in_array($this->domNode->getAttribute('role'), ['doc-noteref', 'doc-footnote', 'note'], true))) {
+            return false;
+        }
+
         $transparentTags = [
             'strong',  'b',      'em',     'i',      'span',   'u',
             's',       'del',    'ins',    'mark',   'small',  'sub',

@@ -374,6 +374,9 @@ class CpdfPdfua extends Cpdf
             if ($elemData['type'] === 'TH') {
                 $this->o_structElem($objectId, 'tableAttributes', ['Scope' => 'Column']);
             }
+            if ($elemData['type'] === 'Note') {
+                $this->o_structElem($objectId, 'structId', 'note_' . $objectId);
+            }
         }
 
         // Second pass: Set up parent-child relationships

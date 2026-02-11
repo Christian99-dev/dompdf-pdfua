@@ -931,6 +931,11 @@ class Cpdf
                 $o['info']['title'] = $options;
                 break;
 
+            case 'structId':
+                // Set the structure element ID (/ID) - required for Note elements (PDF/UA 7.9)
+                $o['info']['structId'] = $options;
+                break;
+
             case 'tableAttributes':
                 // Set table-specific attributes (/A with /O /Table)
                 // e.g. ['Scope' => 'Column'] for TH elements
@@ -946,6 +951,10 @@ class Cpdf
 
                 if (isset($o['info']['parent'])) {
                     $res .= "\n/P " . $o['info']['parent'] . " 0 R";
+                }
+
+                if (isset($o['info']['structId'])) {
+                    $res .= "\n/ID (" . $o['info']['structId'] . ")";
                 }
 
                 // Set all PDF attributes if present
