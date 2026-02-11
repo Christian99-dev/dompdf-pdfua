@@ -276,7 +276,7 @@ class SemanticNode
             'strong',  'b',      'em',     'i',      'span',   'u',
             's',       'del',    'ins',    'mark',   'small',  'sub',
             'sup',     'code',   'kbd',    'samp',   'var',    'cite',
-            'dfn',     'abbr',   'time',
+            'dfn',     'abbr',   'time',   'dompdf_generated',
         ];
         
         return in_array($this->domNode->nodeName, $transparentTags, true);
