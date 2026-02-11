@@ -120,6 +120,15 @@ class SemanticNode
         return $this->domNode->nodeName === '#text';
     }
 
+    /**
+     * Synthetic list marker node created by dompdf (e.g. "1.", "2.")
+     * The <bullet> element has no text content — the marker text is generated at render time.
+     */
+    public function isBulletNode(): bool
+    {
+        return $this->domNode->nodeName === 'bullet';
+    }
+
     public function isEmptyTextNode(): bool
     {
         return $this->isTextNode() && trim($this->domNode->textContent) === '';

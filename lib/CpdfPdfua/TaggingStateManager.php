@@ -47,8 +47,8 @@ class TaggingStateManager
             return;
         }
 
-        // Only track text nodes, image tags, and link tags
-        if (!$node->isTextNode() && !$node->isImageNode() && !$node->isLinkNode()) {
+        // Only track text nodes, bullet markers, image tags, and link tags
+        if (!$node->isTextNode() && !$node->isBulletNode() && !$node->isImageNode() && !$node->isLinkNode()) {
             return;
         }
 

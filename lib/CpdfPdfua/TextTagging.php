@@ -57,7 +57,7 @@ class TextTagging
 
         // print "[TextTagging] analyze(): \n\tisTextNode=" . ($isTextNode ? 'true' : 'false') . ",\n\tpdfTag=" . ($pdfTag ?? 'null') . ", \n\tisArtifact=" . ($isArtifact ? 'true' : 'false') . ", \n\tinSameParent=" . ($inSameParent ? 'true' : 'false') . "\n";
 
-        if (!$currentSemanticNode->isTextNode() || $currentSemanticNode->getStructuralParentPdfStructureTag() === null) {
+        if ((!$currentSemanticNode->isTextNode() && !$currentSemanticNode->isBulletNode()) || $currentSemanticNode->getStructuralParentPdfStructureTag() === null) {
             // no text node, this should not happen, but if it does, we just continue without tagging
             return TaggingDecision::CONTINUE;
         }

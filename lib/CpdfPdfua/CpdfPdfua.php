@@ -207,9 +207,9 @@ class CpdfPdfua extends Cpdf
     {
         if ($currentNode === null) return [];
         
-        // For text nodes, start with structural parent (e.g., <p>)
+        // For text/bullet nodes, start with structural parent (e.g., <p>, <li>)
         // For element nodes (img), start with the element itself
-        if ($currentNode->isTextNode()) {
+        if ($currentNode->isTextNode() || $currentNode->isBulletNode()) {
             $current = $currentNode->getNextStructuralParentNode();
             if ($current === null) return [];
             $rawChain = [$current]; // Start with parent (leaf element)
@@ -571,7 +571,9 @@ class CpdfPdfua extends Cpdf
      */
     public function setCurrentDomNode($node): void
     {
-        if (!$this->pdfua) return;
+        if (!$this->pdfua) return; 
+        // wihn node name and text
+        // print "[CPDF PDFUA] setCurrentDomNode: " . $node->nodeName . " Text content: '" . trim($node->textContent) . "'\n";
         $this->taggingStateManager->setCurrentSemanticNode(new SemanticNode($node));
     }
 
@@ -725,6 +727,7 @@ class CpdfPdfua extends Cpdf
     {
         if (!$this->pdfua) return parent::addText($x, $y, $size, $text, $angle, $wordSpaceAdjust, $charSpaceAdjust, $smallCaps);
 
+        // print "[CPDF PDFUA] addText() " . $this->taggingStateManager->getCurrentSemanticNode()->getDomNode()->nodeName . " - \"$text\"\n";
         // empty text check
         if (trim($text) === '') {
             // if ($this->debugEnabled) print "[CPDF PDFUA] addText(): Skipping empty text\n";
