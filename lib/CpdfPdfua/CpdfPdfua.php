@@ -879,6 +879,47 @@ class CpdfPdfua extends Cpdf
     }
 
     /**
+     * Add internal (named destination) link with PDF/UA support
+     */
+    public function addInternalLink($label, $x0, $y0, $x1, $y1)
+    {
+        // print "[CpdfPdfua] addInternalLink: $label\n";
+
+        // Store current numObj before creating annotation
+        $numObjBefore = $this->numObj;
+        
+        // Create the internal link annotation
+        parent::addInternalLink($label, $x0, $y0, $x1, $y1);
+        
+        // The annotation ID is numObjBefore + 1 (first object created)
+        $annotId = $numObjBefore + 1;
+        
+        // Get link text from current semantic node
+        $linkNode = $this->taggingStateManager->getCurrentSemanticNode();
+        
+        // For internal links, use the link text content as Contents
+        $altText = $linkNode ? trim($linkNode->getDomNode()->textContent) : $label;
+        
+        // Add Contents key and StructParent to annotation (required by PDF/UA)
+        if (isset($this->objects[$annotId]['info'])) {
+            $this->objects[$annotId]['info']['contents'] = $altText;
+            
+            // Store link node for later use
+            $this->objects[$annotId]['info']['linkNode'] = $linkNode;
+            
+            // Add StructParent linkage
+            $structParentIndex = $this->structParentCounter++;
+            $this->objects[$annotId]['info']['structParent'] = $structParentIndex;
+            
+            // Store annotation info for OBJR creation
+            $this->pendingLinkAnnotations[$annotId] = [
+                'structParent' => $structParentIndex,
+                'pageId' => $this->currentPage  // Store current page for OBJR
+            ];
+        }
+    }
+
+    /**
      * Check if we are currently inside a link element
      */
     private function isInsideLinkElement(): bool
