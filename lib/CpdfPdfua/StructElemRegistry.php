@@ -112,7 +112,8 @@ class StructElemRegistry
             'actualText' => $actualText,
             'lang' => $lang,
             'expansion' => $expansion,
-            'title' => $title
+            'title' => $title,
+            'bbox' => null          // BBox for Figure elements [x, y, w, h]
         ];
 
         // Add to parent's children
@@ -272,6 +273,19 @@ class StructElemRegistry
         
         // Remove old key
         unset($this->structElems[$oldKey]);
+    }
+
+    /**
+     * Set BBox for a structure element (used for Figure elements)
+     * 
+     * @param string $key Element key
+     * @param array $bbox BBox array [x, y, width, height]
+     */
+    public function setBBox(string $key, array $bbox): void
+    {
+        if (isset($this->structElems[$key])) {
+            $this->structElems[$key]['bbox'] = $bbox;
+        }
     }
 
     /**

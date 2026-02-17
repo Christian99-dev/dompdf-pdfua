@@ -942,6 +942,11 @@ class Cpdf
                 $o['info']['tableAttributes'] = $options;
                 break;
 
+            case 'bbox':
+                // Set the bounding box for layout elements (e.g., Figure)
+                $o['info']['bbox'] = $options;
+                break;
+
             case 'out':
                 $res = "\n$id 0 obj\n<< /Type /StructElem";
 
@@ -1031,6 +1036,14 @@ class Cpdf
                         $res .= " /" . $attrName . " /" . $attrValue;
                     }
                     $res .= " >>";
+                }
+
+                if (isset($o['info']['bbox'])) {
+                    $res .= "\n/BBox [";
+                    foreach ($o['info']['bbox'] as $value) {
+                        $res .= sprintf("%.4F ", $value);
+                    }
+                    $res .= "]";
                 }
 
                 $res .= " >>\nendobj";

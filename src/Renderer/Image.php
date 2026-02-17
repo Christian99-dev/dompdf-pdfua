@@ -65,6 +65,18 @@ class Image extends Block
             if ($style->has_border_radius()) {
                 $this->_canvas->clipping_end();
             }
+
+            // Set BBox for PDF/UA Figure element
+            $canvas = $this->_canvas;
+            if ($canvas instanceof \Dompdf\Adapter\CPDF) {
+                $cpdf = $canvas->get_cpdf();
+                if ($cpdf !== null && method_exists($cpdf, 'setCurrentStructElemBBox')) {
+                    // Convert coordinates to PDF coordinate system (bottom-left origin)
+                    $pageHeight = $canvas->get_height();
+                    $pdfY = $pageHeight - $y - $h;
+                    $cpdf->setCurrentStructElemBBox([$x, $pdfY, $w, $h]);
+                }
+            }
         }
 
         $this->addNamedDest($node);

@@ -371,6 +371,9 @@ class CpdfPdfua extends Cpdf
             if (!empty($elemData['title'])) {
                 $this->o_structElem($objectId, 'title', $elemData['title']);
             }
+            if (!empty($elemData['bbox'])) {
+                $this->o_structElem($objectId, 'bbox', $elemData['bbox']);
+            }
             if ($elemData['type'] === 'TH') {
                 $this->o_structElem($objectId, 'tableAttributes', ['Scope' => 'Column']);
             }
@@ -546,6 +549,26 @@ class CpdfPdfua extends Cpdf
 
         // Initialize document root in registry
         $this->structElemRegistry->registerDocumentRoot();
+    }
+
+    /**
+     * Set BBox for the current structure element (used for Figure/Image elements)
+     * @param array $bbox BBox array [x, y, width, height]
+     */
+    public function setCurrentStructElemBBox(array $bbox): void
+    {
+        if (!$this->pdfua) return;
+        
+        $currentSemanticNode = $this->taggingStateManager->getCurrentSemanticNode();
+        if ($currentSemanticNode === null) return;
+        
+        // Get the last registered struct elem (should be the current Figure)
+        $structElems = $this->structElemRegistry->getStructElems();
+        $lastKey = array_key_last($structElems);
+        
+        if ($lastKey !== null) {
+            $this->structElemRegistry->setBBox($lastKey, $bbox);
+        }
     }
 
     /**
