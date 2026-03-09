@@ -120,16 +120,14 @@ class TextTagging
                 $textCallback();
                 break;
 
-            // Close first
+            // Close first, then open semantic
             case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG:
-            case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
             case TaggingDecision::CLOSE:
                 $stateManager->setState(TaggingState::NONE);
                 $addContentCallback(TagOps::endMarkedContent());
+                // fall through to open semantic
 
-                // Open Semantic parent
             case TaggingDecision::OPEN_SEMANTIC_WITH_PARENT_TAG:
-            case TaggingDecision::CLOSE_AND_OPEN_SEMANTIC_WITH_PARENT_TAG:
                 $stateManager->setState(TaggingState::SEMANTIC);
 
                 $mcid = $stateManager->getNextMcid();
@@ -141,9 +139,13 @@ class TextTagging
                 $onMarkedContentAdded($pdfTag, $mcid);
                 break;
 
-            // Open Artifact
-            case TaggingDecision::OPEN_ARTIFACT:
+            // Close first, then open artifact
             case TaggingDecision::CLOSE_AND_OPEN_ARTIFACT:
+                $stateManager->setState(TaggingState::NONE);
+                $addContentCallback(TagOps::endMarkedContent());
+                // fall through to open artifact
+
+            case TaggingDecision::OPEN_ARTIFACT:
                 $stateManager->setState(TaggingState::ARTIFACT);
 
                 $addContentCallback(TagOps::startArtifactContent());
