@@ -275,11 +275,11 @@ class CpdfPdfua extends Cpdf
         
         // Check if already registered
         if ($this->structElemRegistry->hasStructElem($containerKey)) {
-            // LI must contain LBody — return the LBody wrapper
             if ($tag === 'LI') {
-                $lbodyKey = $containerKey . '_lbody';
-                if ($this->structElemRegistry->hasStructElem($lbodyKey)) {
-                    return $lbodyKey;
+                $isBullet = $this->taggingStateManager->getCurrentSemanticNode()?->isBulletNode();
+                $childKey  = $containerKey . ($isBullet ? '_lbl' : '_lbody');
+                if ($this->structElemRegistry->hasStructElem($childKey)) {
+                    return $childKey;
                 }
             }
             return $containerKey;
@@ -306,13 +306,15 @@ class CpdfPdfua extends Cpdf
         // Rename the key to our container key
         $this->structElemRegistry->renameKey($lastKey, $containerKey);
 
-        // LI must contain LBody wrapper per PDF/UA (7.2)
+        // LI must contain Lbl (marker) + LBody (content) per PDF/UA spec
         if ($tag === 'LI') {
-            $lbodyKey = $containerKey . '_lbody';
-            $this->structElemRegistry->registerStructElem('LBody', null, null, $containerKey);
-            $lbLastKey = array_key_last($this->structElemRegistry->getStructElems());
-            $this->structElemRegistry->renameKey($lbLastKey, $lbodyKey);
-            return $lbodyKey;
+            $isBullet = $this->taggingStateManager->getCurrentSemanticNode()?->isBulletNode();
+            foreach (['_lbl' => 'Lbl', '_lbody' => 'LBody'] as $suffix => $childTag) {
+                $childKey = $containerKey . $suffix;
+                $this->structElemRegistry->registerStructElem($childTag, null, null, $containerKey);
+                $this->structElemRegistry->renameKey(array_key_last($this->structElemRegistry->getStructElems()), $childKey);
+            }
+            return $containerKey . ($isBullet ? '_lbl' : '_lbody');
         }
         
         return $containerKey;
@@ -635,6 +637,30 @@ class CpdfPdfua extends Cpdf
     }
 
     /**
+     * Drawings are in general wrapped in "wrapInArtifact" since they are usually decorative, 
+     * but if we're currently in a bullet node, we want to wrap them in the bullet's semantic tag.
+     * So drawings methods wich could potentially be used for bullets 
+     * (ellipse for circular bullets, rectangle for square bullets) 
+     * are wrapped in this method.
+     */
+    private function wrapPossibleBullet(callable $op): void
+    {
+        $isBullet = $this->taggingStateManager->getCurrentSemanticNode()?->isBulletNode();
+
+        if (!$isBullet) {
+            $this->wrapInArtifact($op);
+            return;
+        }
+        
+        $this->textTagging->process(
+            $this->taggingStateManager,
+            $op,
+            fn($c) => parent::addContent($c),
+            $this->onMarkedContentAdded
+        );
+    }
+
+    /**
      * Wrap image rendering in semantic Figure tag
      * Basic version: Always wraps in Figure, no artifact detection yet
      */
@@ -777,11 +803,18 @@ class CpdfPdfua extends Cpdf
     // ========================
     // Drawing Operations
     // ========================
+    function ellipse($x0, $y0, $r1, $r2 = 0, $angle = 0, $nSeg = 8, $astart = 0, $afinish = 360, $close = true, $fill = false, $stroke = true, $incomplete = false)
+    {
+        $this->wrapPossibleBullet(
+            fn() => parent::ellipse($x0, $y0, $r1, $r2, $angle, $nSeg, $astart, $afinish, $close, $fill, $stroke, $incomplete)
+        );
+    }
+
     function filledRectangle($x1, $y1, $width, $height)
     {
-        $this->wrapInArtifact(function() use ($x1, $y1, $width, $height) {
-            parent::filledRectangle($x1, $y1, $width, $height);
-        });
+        $this->wrapPossibleBullet(
+            fn() => parent::filledRectangle($x1, $y1, $width, $height)
+        );
     }
 
     function rectangle($x1, $y1, $width, $height)
@@ -857,6 +890,8 @@ class CpdfPdfua extends Cpdf
             return;
         }
 
+        if ($this->taggingStateManager->getCurrentSemanticNode()?->isArtifactNode()) return;
+
         // print "[CpdfPdfua] addLink: $url\n";
 
         // Store current numObj before creating annotation
@@ -907,6 +942,13 @@ class CpdfPdfua extends Cpdf
     public function addInternalLink($label, $x0, $y0, $x1, $y1)
     {
         // print "[CpdfPdfua] addInternalLink: $label\n";
+
+        if (!$this->pdfua) {
+            parent::addInternalLink($label, $x0, $y0, $x1, $y1);
+            return;
+        }
+
+        if ($this->taggingStateManager->getCurrentSemanticNode()?->isArtifactNode()) return;
 
         // Store current numObj before creating annotation
         $numObjBefore = $this->numObj;

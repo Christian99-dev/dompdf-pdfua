@@ -116,6 +116,12 @@ class SemanticNode
     
     public function hasSameStructuralParentAs(SemanticNode $otherNode): bool
     {
+        // Bullet markers and list-item text share the same <li> DOM parent, but must
+        // land in different StructElems (Lbl vs LBody). Treat the boundary as never equal.
+        if ($this->isBulletNode() !== $otherNode->isBulletNode()) {
+            return false;
+        }
+
         $thisParent = $this->getNextStructuralParentNode();
         $otherParent = $otherNode->getNextStructuralParentNode();
             
